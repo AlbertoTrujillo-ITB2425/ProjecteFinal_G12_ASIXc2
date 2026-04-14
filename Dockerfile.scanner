@@ -1,12 +1,10 @@
 FROM php:8.2-fpm-alpine
 
-# Dependencias de sistema + librerías para SSH2 y compilación
+# Herramientas de auditoría + librerías para SSH2 y compilación
 RUN apk add --no-cache \
     nmap \
     nmap-scripts \
     curl \
-    libpng-dev \
-    libxml2-dev \
     libssh2-dev \
     autoconf \
     g++ \

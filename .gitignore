@@ -1,3 +1,6 @@
 .env
 db_data/
 ldap_data/
+ldap_config/
+redis_data/
+node_modules/
