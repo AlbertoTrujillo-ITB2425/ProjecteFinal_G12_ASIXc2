@@ -1,0 +1,77 @@
+services:
+  cyberaudit-firewall:
+    image: bunkerity/bunkerweb:latest
+    container_name: cyberaudit-firewall
+    ports:
+      - 8080:8080
+    environment:
+      - SERVER_NAME=
+      - MULTISITE=no
+      - USE_REVERSE_PROXY=yes
+      - REVERSE_PROXY_URL=/
+      - REVERSE_PROXY_HOST=http://g7-backend:9000
+      - SERVE_FILES=no
+      - AUTO_LETS_ENCRYPT=no
+      - USE_MODSECURITY=no
+      - LOG_LEVEL=info
+      - LISTEN_HTTP=yes
+      - HTTP_PORT=8080
+    volumes:
+      - ./g7_src:/var/www/html:ro
+    networks:
+      - net_public
+    restart: always
+    depends_on:
+      - g7-backend
+
+  g7-backend:
+    build: .
+    container_name: g7-backend
+    expose:
+      - "9000"
+    volumes:
+      - ./g7_src:/var/www/html
+      - ./config/php-sessions.ini:/usr/local/etc/php/conf.d/sessions.ini
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    networks:
+      - net_public
+      - net_private
+    restart: always
+
+  redis-session:
+    image: redis:7-alpine
+    container_name: cyberaudit-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - net_private
+    restart: always
+
+  mariadb:
+    image: mariadb:10.11
+    container_name: cyberaudit-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+    volumes:
+      - ./db_data:/var/lib/mysql
+    networks:
+      - net_private
+    restart: always
+
+  openldap:
+    image: osixia/openldap:latest
+    container_name: cyberaudit-ldap
+    environment:
+      - LDAP_ORGANISATION="CyberAudit SaaS"
+      - LDAP_DOMAIN="g7.local"
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
+    volumes:
+      - ./ldap_data:/var/lib/ldap
+    networks:
+      - net_private
+    restart: always
+
+networks:
+  net_public:
+  net_private:
+    internal: true

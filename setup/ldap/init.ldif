@@ -1,0 +1,13 @@
+dn: dc=g7,dc=local
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: CyberAudit SaaS
+dc: g7
+
+dn: cn=admin,dc=g7,dc=local
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: admin
+description: LDAP administrator
+userPassword: G7_Ldap_Admin_Secret
