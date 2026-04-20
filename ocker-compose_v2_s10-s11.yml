@@ -1,0 +1,31 @@
+  # S10: Postfix (Servidor de correo)
+  s10_postfix:
+    build:
+      context: .
+      dockerfile: Dockerfile.s10
+    container_name: s10_postfix
+    networks:
+      - net_private
+    ports:
+      - "25:25"
+      - "587:587"
+    volumes:
+      - ./mail_logs:/var/log/mail
+    restart: always
+
+  # S11: Snort (IDS/IPS)
+  s11_snort:
+    build:
+      context: .
+      dockerfile: Dockerfile.s11
+    container_name: s11_snort
+    networks:
+      - net_private
+    volumes:
+      - ./snort_logs:/var/log/snort
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: always
+    depends_on:
+      - s1_nginx
