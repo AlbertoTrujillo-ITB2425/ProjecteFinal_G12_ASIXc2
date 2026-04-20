@@ -1,8 +1,10 @@
 version: '3.8'
 
-# 1. PLANTILLA BASE
+# 1. PLANTILLA BASE (Nodos Web y Scanner)
 x-app-base: &app_base
-  build: .
+  build:
+    context: .
+    dockerfile: Dockerfile
   restart: always
   volumes:
     - ./g7_src:/var/www/html
@@ -108,14 +110,19 @@ services:
     networks:
       - net_private
 
-  # S9: Auditoría & Recon (Nmap + Shodan)
+  # S9: Auditoría & Recon (Ahora usa el Dockerfile unificado de PHP)
   s9_scanner:
     <<: *app_base
     container_name: s9_scanner
-    build:
-      context: .
-      dockerfile: Dockerfile.scanner
     environment:
+      - DB_HOST=s4_mariadb
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=s5_redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - LDAP_HOST=s6_openldap
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
       - SHODAN_API_KEY=${SHODAN_API_KEY}
       - NODE_NAME=s9_scanner_engine
     networks:
@@ -125,11 +132,11 @@ services:
       - NET_RAW
       - NET_ADMIN
 
-  # S10: Postfix
+  # S10: Postfix (Usa el nuevo Dockerfile.s10_s11)
   s10_postfix:
     build:
       context: .
-      dockerfile: Dockerfile.s10
+      dockerfile: Dockerfile.s10_s11
     container_name: s10_postfix
     ports:
       - "25:25"
@@ -140,12 +147,13 @@ services:
       - net_private
     restart: always
 
-  # S11: Snort (IDS/IPS)
+  # S11: Snort (Usa el MISMO Dockerfile que el S10)
   s11_snort:
     build:
       context: .
-      dockerfile: Dockerfile.s11
+      dockerfile: Dockerfile.s10_s11
     container_name: s11_snort
+    command: snort -A console -i eth0 -c /etc/snort/snort.conf
     volumes:
       - ./snort_logs:/var/log/snort
     cap_add:
@@ -163,4 +171,4 @@ networks:
     driver: bridge
   net_private:
     driver: bridge
-    internal: true 
+    internal: true
