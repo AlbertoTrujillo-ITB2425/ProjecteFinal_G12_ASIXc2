@@ -1,6 +1,5 @@
 FROM php:8.2-fpm-alpine
 
-# Dependencias de sistema + librerías para SSH2 y compilación
 RUN apk add --no-cache \
     nmap \
     nmap-scripts \
@@ -10,11 +9,16 @@ RUN apk add --no-cache \
     libssh2-dev \
     autoconf \
     g++ \
-    make
+    make \
+    linux-headers
 
-# Instalar y habilitar extensión REDIS, SSH2 + PDO MySQL
 RUN pecl install redis ssh2-1.3.1 \
     && docker-php-ext-enable redis ssh2
-RUN docker-php-ext-install pdo pdo_mysql
+
+RUN docker-php-ext-install pdo pdo_mysql gd xml
 
 WORKDIR /var/www/html
+
+EXPOSE 9000
+
+CMD ["php-fpm"]
