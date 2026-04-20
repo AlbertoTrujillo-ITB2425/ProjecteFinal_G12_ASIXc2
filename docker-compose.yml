@@ -1,9 +1,9 @@
-# Plantilla base para los nodos de aplicación
+version: '3.8'
+
+# 1. PLANTILLA BASE
 x-app-base: &app_base
   build: .
   restart: always
-  networks:
-    - net_private
   volumes:
     - ./g7_src:/var/www/html
     - ./config/php-sessions.ini:/usr/local/etc/php/conf.d/sessions.ini
@@ -36,21 +36,20 @@ services:
       - s2_node
       - s3_node
 
-# S2: Web Node Alpha
+  # S2 & S3: Web Nodes
   s2_node:
     <<: *app_base
     container_name: s2_node
     networks:
-      - net_private
       - net_public
+      - net_private
 
-  # S3: Web Node Beta
   s3_node:
     <<: *app_base
     container_name: s3_node
     networks:
-      - net_private
       - net_public
+      - net_private
 
   # S4: Database Persistence
   s4_mariadb:
@@ -90,24 +89,24 @@ services:
       - net_private
     restart: always
 
-  # S7: SIEM (Alternativa ligera y funcional)
+  # S7: SIEM
   s7_wazuh:
-    image: wazuh/wazuh-manager:4.7.2 
+    image: wazuh/wazuh-manager:4.7.2
     container_name: s7_wazuh
-    networks:
-      - net_private
     ports:
       - "1514:1514"
       - "55000:55000"
+    networks:
+      - net_private
 
   # S8: Metrics & Analytics
   s8_grafana:
     image: grafana/grafana:10.2.3
     container_name: s8_grafana
-    networks:
-      - net_private
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS:-admin123}
+    networks:
+      - net_private
 
   # S9: Auditoría & Recon (Nmap + Shodan)
   s9_scanner:
@@ -117,19 +116,51 @@ services:
       context: .
       dockerfile: Dockerfile.scanner
     environment:
-      - SHODAN_API_KEY=cTZNVRd5Qf4GOpq7TVUoe3K9TdMN1ubt
+      - SHODAN_API_KEY=${SHODAN_API_KEY}
       - NODE_NAME=s9_scanner_engine
     networks:
       - net_public
       - net_private
-    # Necesario para que Nmap pueda hacer escaneos SYN (-sS)
     cap_add:
       - NET_RAW
       - NET_ADMIN
 
+  # S10: Postfix
+  s10_postfix:
+    build:
+      context: .
+      dockerfile: Dockerfile.s10
+    container_name: s10_postfix
+    ports:
+      - "25:25"
+      - "587:587"
+    volumes:
+      - ./mail_logs:/var/log/mail
+    networks:
+      - net_private
+    restart: always
+
+  # S11: Snort (IDS/IPS)
+  s11_snort:
+    build:
+      context: .
+      dockerfile: Dockerfile.s11
+    container_name: s11_snort
+    volumes:
+      - ./snort_logs:/var/log/snort
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      - net_private
+    restart: always
+    depends_on:
+      - s1_nginx
+
+# 2. DEFINICIÓN DE REDES
 networks:
   net_public:
     driver: bridge
   net_private:
     driver: bridge
-    internal: true
+    internal: true 
