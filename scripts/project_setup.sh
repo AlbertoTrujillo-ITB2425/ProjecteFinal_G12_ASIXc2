@@ -1,86 +1,134 @@
 #!/bin/bash
 
-# Colores
+# ===========================
+#  CyberAudit Hub Installer
+# ===========================
+
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${BLUE}==============================================${NC}"
-echo -e "${BLUE}   CyberAudit Hub - Inyector SSL Interno      ${NC}"
-echo -e "${BLUE}==============================================${NC}"
+echo -e "${BLUE}===========================================${NC}"
+echo -e "${BLUE}   CyberAudit Hub - Instalador Automático  ${NC}"
+echo -e "${BLUE}        Despliegue en Puerto 8080          ${NC}"
+echo -e "${BLUE}===========================================${NC}"
 
-# FORZAR lectura desde la terminal real (pantalla)
-exec < /dev/tty
+# Detectar si es Ubuntu
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "$ID" != "ubuntu" ]]; then
+            echo -e "${RED}[ERROR] Este instalador solo funciona en Ubuntu.${NC}"
+            exit 1
+        fi
+    fi
+}
 
-echo -n "➤ Introduce tu dominio (ej: cyberaudit.com): "
-read DOMAIN
-echo -n "➤ Introduce tu email para el certificado: "
-read EMAIL
+# Instalar dependencias en Ubuntu
+install_dependencies() {
+    echo -e "${YELLOW}[+] Instalando dependencias (Git, Docker)...${NC}"
 
-if [[ -z "$DOMAIN" || -z "$EMAIL" ]]; then
-    echo -e "${RED}[ERROR] No proporcionaste los datos por pantalla. Abortando.${NC}"
-    exit 1
+    sudo apt-get update -y
+    sudo apt-get install -y git curl lsof ca-certificates gnupg
+
+    # Instalar Docker
+    sudo install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    sudo apt-get update -y
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    sudo usermod -aG docker $USER
+
+    echo -e "${GREEN}[+] Docker y Git instalados correctamente.${NC}"
+}
+
+# Aplicar grupo docker sin cerrar sesión
+apply_docker_group() {
+    newgrp docker <<EONG
+echo "Grupo docker aplicado"
+EONG
+}
+
+# Crear archivo .env si no existe
+create_env_file() {
+    if [ ! -f .env ]; then
+        echo -e "${YELLOW}[+] Creando archivo .env por defecto...${NC}"
+        cat <<EOF > .env
+DB_NAME=cyberaudit
+DB_USER=cyberuser
+DB_PASSWORD=superpassword
+DB_ROOT_PASSWORD=rootpassword
+REDIS_PASSWORD=redispass
+LDAP_ADMIN_PASSWORD=adminpass
+SHODAN_API_KEY=
+EOF
+    fi
+}
+
+# Detectar IP pública
+detect_public_ip() {
+    PUBLIC_IP=$(curl -s ifconfig.me || echo "")
+    if [[ -z "$PUBLIC_IP" ]]; then
+        ACCESS_URL="http://127.0.0.1:8080"
+    else
+        ACCESS_URL="http://$PUBLIC_IP:8080"
+    fi
+}
+
+# ===========================
+#  EJECUCIÓN PRINCIPAL
+# ===========================
+
+detect_os
+
+# Instalar dependencias si faltan
+for cmd in docker git; do
+    if ! command -v $cmd >/dev/null 2>&1; then
+        install_dependencies
+        apply_docker_group
+        break
+    fi
+done
+
+# Clonar o actualizar repositorio
+REPO_URL="https://github.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7.git"
+TARGET_DIR="ProjecteFinal_G7"
+
+if [ -d "$TARGET_DIR" ]; then
+    echo -e "${BLUE}[+] Actualizando repositorio...${NC}"
+    cd "$TARGET_DIR" && git pull origin main
+else
+    echo -e "${GREEN}[+] Clonando repositorio...${NC}"
+    git clone $REPO_URL
+    cd "$TARGET_DIR"
 fi
 
-# --- A partir de aquí el script sigue su proceso normal ---
+# Crear .env
+create_env_file
 
-echo -e "${YELLOW}[+] Iniciando configuración para: $DOMAIN${NC}"
+# Crear directorios necesarios
+mkdir -p redis_data ldap_config config/nginx g7_src/views
+sudo chown -R $USER:$USER .
 
-# 1. Preparar configuración temporal de Nginx
-cat <<EOF > ./temp_nginx_http.conf
-server {
-    listen 80;
-    server_name $DOMAIN;
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-}
-EOF
+# Levantar contenedores
+echo -e "${GREEN}[+] Iniciando contenedores (Build)...${NC}"
+docker compose up -d --build
 
-# 2. Inyectar en el contenedor s1_nginx
-docker exec s1_nginx mkdir -p /var/www/certbot
-docker cp ./temp_nginx_http.conf s1_nginx:/etc/nginx/conf.d/default.conf
-docker exec s1_nginx nginx -s reload
+# Detectar IP pública
+detect_public_ip
 
-# 3. Obtener Certificados con Certbot (Contenedor temporal)
-docker run --rm \
-    -v "$(pwd)/temp_certbot/conf:/etc/letsencrypt" \
-    -v "$(pwd)/temp_certbot/www:/var/www/certbot" \
-    certbot/certbot certonly --webroot \
-    --webroot-path=/var/www/certbot \
-    --email $EMAIL --agree-tos --no-eff-email -d $DOMAIN
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}[ERROR] No se pudo obtener el certificado. Revisa tu dominio.${NC}"
-    exit 1
-fi
-
-# 4. Inyectar certificados y config final SSL en s1_nginx
-docker exec s1_nginx mkdir -p /etc/letsencrypt
-docker cp ./temp_certbot/conf/. s1_nginx:/etc/letsencrypt/
-
-cat <<EOF > ./temp_nginx_https.conf
-server {
-    listen 80;
-    server_name $DOMAIN;
-    return 301 https://\$host\$request_uri;
-}
-server {
-    listen 443 ssl;
-    server_name $DOMAIN;
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
-    location / {
-        proxy_pass http://s2_node:9000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-EOF
-
-docker cp ./temp_nginx_https.conf s1_nginx:/etc/nginx/conf.d/default.conf
-docker exec s1_nginx nginx -s reload
-
-echo -e "${GREEN}✅ ¡HTTPS activado internamente en s1_nginx para $DOMAIN!${NC}"
+echo -e "${BLUE}===========================================${NC}"
+echo -e "${GREEN}✅ ¡CyberAudit Hub está operativo!${NC}"
+echo -e "${BLUE}Acceso:${NC} $ACCESS_URL"
+echo -e "${BLUE}Servicios actuales:${NC}"
+docker compose ps
+echo -e "${BLUE}===========================================${NC}"
