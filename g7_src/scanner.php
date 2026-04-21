@@ -2,171 +2,490 @@
 include 'db_conn.php';
 include 'views/header.php';
 
-$ip = $_REQUEST['ip'] ?? '';
-$nmap_result = "";
-$recomendaciones = [];
-$forensics = null;
-$forensics_error = null;
-
-// MOTOR 1: ESCANEO EXTERNO (NMAP)
-if ($ip && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Escaneo rápido de puertos y versiones de servicios
-    $cmd = "nmap -F -sV " . escapeshellarg($ip);
-    $nmap_result = shell_exec($cmd);
-
-    // Generador Inteligente de Recomendaciones
-    if (strpos($nmap_result, '21/tcp') !== false) {
-        $recomendaciones[] = ['riesgo' => 'ALTO', 'msg' => 'Puerto FTP (21) abierto. El tráfico no está cifrado. Usa SFTP en su lugar.', 'color' => 'text-red-500'];
-    }
-    if (strpos($nmap_result, '22/tcp') !== false) {
-        $recomendaciones[] = ['riesgo' => 'MEDIO', 'msg' => 'Puerto SSH (22) abierto. Recomendable cambiar el puerto por defecto e instalar Fail2Ban para evitar fuerza bruta.', 'color' => 'text-orange-500'];
-    }
-    if (strpos($nmap_result, '80/tcp') !== false && strpos($nmap_result, '443/tcp') === false) {
-        $recomendaciones[] = ['riesgo' => 'MEDIO', 'msg' => 'Puerto HTTP (80) abierto sin HTTPS detectado. Despliega un certificado SSL/TLS (Let\'s Encrypt).', 'color' => 'text-orange-500'];
-    }
-    if (strpos($nmap_result, '3306/tcp') !== false) {
-        $recomendaciones[] = ['riesgo' => 'CRÍTICO', 'msg' => 'Base de datos MySQL (3306) expuesta al exterior. Bloquea este puerto en el firewall inmediatamente.', 'color' => 'text-red-500'];
-    }
-    if (empty($recomendaciones)) {
-        $recomendaciones[] = ['riesgo' => 'BAJO', 'msg' => 'No se han detectado puertos críticos expuestos en el escaneo rápido.', 'color' => 'text-emerald-500'];
-    }
-}
-
-// MOTOR 2: EXTRACCIÓN FORENSE VIA SSH
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ssh_user'])) {
-    $ip = $_POST['ip'];
-    $user = $_POST['ssh_user'];
-    $pass = $_POST['ssh_pass'];
-
-    if (function_exists('ssh2_connect')) {
-        $connection = @ssh2_connect($ip, 22);
-        if ($connection && @ssh2_auth_password($connection, $user, $pass)) {
-            $forensics = [];
-            
-            // Función auxiliar para ejecutar comandos
-            $exec_ssh = function($cmd) use ($connection, $user, $pass) {
-                if ($user !== 'root' && strpos($cmd, 'sudo') !== false) {
-                    $cmd = "echo '$pass' | sudo -S " . str_replace('sudo ', '', $cmd);
-                }
-                $stream = ssh2_exec($connection, $cmd);
-                stream_set_blocking($stream, true);
-                return stream_get_contents($stream);
-            };
-
-            // 1. Conexiones Establecidas (ss o netstat)
-            $forensics['conexiones'] = $exec_ssh("ss -tun state established");
-            
-            // 2. Usuarios Activos
-            $forensics['usuarios'] = $exec_ssh("w");
-            
-            // 3. Ataques de Fuerza Bruta (Logs)
-            $forensics['ataques'] = $exec_ssh("sudo grep 'Failed password' /var/log/auth.log | tail -n 15");
-
-        } else {
-            $forensics_error = "Credenciales SSH denegadas o puerto cerrado.";
-        }
-    } else {
-        $forensics_error = "El módulo SSH2 no está activo en el contenedor PHP.";
-    }
-}
+$ip = htmlspecialchars($_GET['ip'] ?? '');
 ?>
 
+<style>
+  /* ── Terminal SSH ── */
+  #ssh-terminal {
+    background: #0a0a0f;
+    color: #00ff9f;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    padding: 12px;
+    height: 340px;
+    overflow-y: auto;
+    border-radius: 0 0 8px 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #ssh-input-line {
+    display: flex;
+    align-items: center;
+    background: #0a0a0f;
+    border-top: 1px solid #1e3a2f;
+    padding: 6px 12px;
+    border-radius: 0 0 8px 8px;
+  }
+  #ssh-prompt { color: #00ff9f; margin-right: 6px; font-family: monospace; font-size: 12px; white-space: nowrap; }
+  #ssh-cmd { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-family: monospace; font-size: 12px; }
+
+  /* Spinner */
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Nmap output */
+  #nmap-output {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: #000;
+    color: #34d399;
+    padding: 12px;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    border-radius: 0 0 8px 8px;
+  }
+
+  /* Risk badges */
+  .badge-critico  { background:#7f1d1d; color:#fca5a5; }
+  .badge-alto     { background:#431407; color:#fb923c; }
+  .badge-medio    { background:#422006; color:#fbbf24; }
+  .badge-bajo     { background:#052e16; color:#4ade80; }
+</style>
+
 <main class="max-w-7xl mx-auto py-8 px-4">
-    <div class="mb-8 flex items-center justify-between">
-        <div>
-            <h1 class="text-3xl font-bold text-white"><i class="fas fa-radar text-sky-500 mr-2"></i> Auditoría Avanzada</h1>
-            <p class="text-slate-400 text-sm mt-1">Superficie de ataque externa e inspección forense interna.</p>
-        </div>
-        <a href="index.php" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"><i class="fas fa-arrow-left mr-2"></i> Volver al Hub</a>
-    </div>
 
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-8 shadow-lg">
-        <form action="scanner.php" method="GET" class="flex gap-4">
-            <input type="text" name="ip" value="<?php echo htmlspecialchars($ip); ?>" placeholder="Introduce IP o Dominio..." required
-                   class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-sky-500 outline-none">
-            <button class="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2 rounded-lg font-bold shadow-lg shadow-sky-500/20">Escanear Exterior</button>
-        </form>
+  <!-- Header -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <h1 class="text-3xl font-bold text-white">
+        <i class="fas fa-satellite-dish text-sky-500 mr-2"></i> Auditoría Avanzada
+      </h1>
+      <p class="text-slate-400 text-sm mt-1">Superficie de ataque externa · Forense SSH · Terminal remota.</p>
     </div>
+    <a href="index.php" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+      <i class="fas fa-arrow-left mr-2"></i> Volver al Hub
+    </a>
+  </div>
 
-    <?php if ($ip): ?>
+  <!-- Search bar -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-8 shadow-lg">
+    <div class="flex gap-4">
+      <input id="scan-ip" type="text" value="<?= $ip ?>" placeholder="IP o dominio objetivo (ej: 192.168.1.1 o ejemplo.com)…"
+             class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-sky-500 outline-none">
+      <button onclick="startScan()" class="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2 rounded-lg font-bold shadow-lg shadow-sky-500/20 transition-all">
+        <i class="fas fa-crosshairs mr-2"></i>Escanear
+      </button>
+    </div>
+  </div>
+
+  <!-- Main grid (shown only after scan) -->
+  <div id="results-area" class="<?= $ip ? '' : 'hidden' ?>">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        <div class="space-y-6">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-                <div class="bg-slate-800 px-4 py-3 flex justify-between items-center">
-                    <h3 class="font-bold text-white text-sm"><i class="fas fa-network-wired text-sky-500 mr-2"></i> Reconocimiento Nmap (Caja Negra)</h3>
-                </div>
-                <div class="p-4 bg-black font-mono text-xs text-emerald-400 whitespace-pre-wrap overflow-x-auto h-64"><?php echo htmlspecialchars($nmap_result ?: "Iniciando escaneo...\nNo se pudo obtener respuesta."); ?></div>
-            </div>
 
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
-                <h3 class="font-bold text-white mb-4 text-sm"><i class="fas fa-clipboard-check text-emerald-500 mr-2"></i> Recomendaciones de Mitigación</h3>
-                <div class="space-y-3">
-                    <?php foreach($recomendaciones as $rec): ?>
-                    <div class="bg-slate-950 p-3 rounded border border-slate-800 flex items-start gap-3">
-                        <span class="text-xs font-bold px-2 py-1 rounded bg-slate-800 <?php echo $rec['color']; ?>"><?php echo $rec['riesgo']; ?></span>
-                        <p class="text-sm text-slate-300"><?php echo $rec['msg']; ?></p>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
+      <!-- LEFT COLUMN -->
+      <div class="space-y-6">
+
+        <!-- Nmap panel -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+          <div class="bg-slate-800 px-4 py-3 flex justify-between items-center">
+            <h3 class="font-bold text-white text-sm">
+              <i class="fas fa-network-wired text-sky-500 mr-2"></i> Reconocimiento Nmap (Caja Negra)
+            </h3>
+            <span id="nmap-status" class="text-xs text-slate-400"></span>
+          </div>
+          <div id="nmap-output">Introduce una IP y pulsa Escanear…</div>
         </div>
 
-        <div class="space-y-6">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg p-6 relative overflow-hidden">
-                <h3 class="font-bold text-white text-lg mb-2"><i class="fas fa-microscope text-purple-500 mr-2"></i> Análisis Forense en Vivo</h3>
-                <p class="text-xs text-slate-400 mb-6">Requiere acceso SSH para inspeccionar las tripas del servidor y extraer conexiones activas y ataques.</p>
-
-                <?php if (!$forensics): ?>
-                <form action="scanner.php" method="POST" class="space-y-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
-                    <input type="hidden" name="ip" value="<?php echo htmlspecialchars($ip); ?>">
-                    <?php if($forensics_error): ?>
-                        <div class="text-xs text-red-500 bg-red-500/10 p-2 rounded border border-red-500/20"><i class="fas fa-triangle-exclamation"></i> <?php echo $forensics_error; ?></div>
-                    <?php endif; ?>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs text-slate-500 mb-1 uppercase">Usuario Linux</label>
-                            <input type="text" name="ssh_user" value="root" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-slate-500 mb-1 uppercase">Contraseña</label>
-                            <input type="password" name="ssh_pass" required class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none">
-                        </div>
-                    </div>
-                    <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-sm shadow-lg shadow-purple-500/20 transition-all flex justify-center items-center gap-2">
-                        <i class="fas fa-key"></i> Autorizar Inspección Profunda
-                    </button>
-                </form>
-                <?php else: ?>
-                
-                <div class="space-y-4">
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-red-400 font-bold uppercase tracking-wider">Ataques Recientes (auth.log)</span>
-                        </div>
-                        <div class="bg-black p-3 rounded border border-red-500/30 text-[10px] font-mono text-red-400 h-24 overflow-y-auto whitespace-pre-wrap"><?php echo htmlspecialchars($forensics['ataques'] ?: "No se detectaron intentos de fuerza bruta recientes."); ?></div>
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-sky-400 font-bold uppercase tracking-wider">Conexiones Establecidas</span>
-                        </div>
-                        <div class="bg-black p-3 rounded border border-sky-500/30 text-[10px] font-mono text-sky-300 h-24 overflow-y-auto whitespace-pre-wrap"><?php echo htmlspecialchars($forensics['conexiones'] ?: "No hay conexiones establecidas."); ?></div>
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-emerald-400 font-bold uppercase tracking-wider">Usuarios Autenticados</span>
-                        </div>
-                        <div class="bg-black p-3 rounded border border-emerald-500/30 text-[10px] font-mono text-emerald-300 h-20 overflow-y-auto whitespace-pre-wrap"><?php echo htmlspecialchars($forensics['usuarios'] ?: "No hay usuarios logueados."); ?></div>
-                    </div>
-                </div>
-                
-                <?php endif; ?>
-            </div>
+        <!-- Recommendations -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+          <h3 class="font-bold text-white mb-4 text-sm">
+            <i class="fas fa-clipboard-check text-emerald-500 mr-2"></i> Recomendaciones de Mitigación
+          </h3>
+          <div id="recomendaciones" class="space-y-3">
+            <p class="text-slate-500 text-xs">Esperando resultados del escaneo…</p>
+          </div>
         </div>
+
+        <!-- Firewall helper (actúa sobre el target real) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+          <h3 class="font-bold text-white text-sm mb-1">
+            <i class="fas fa-shield-halved text-amber-500 mr-2"></i> Asistente de Firewall UFW
+          </h3>
+          <p class="text-xs text-slate-400 mb-4">Aplica reglas UFW directamente en el servidor objetivo vía SSH.</p>
+
+          <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 uppercase">Usuario SSH</label>
+                <input id="fw-user" type="text" value="root" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 uppercase">Contraseña</label>
+                <input id="fw-pass" type="password" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500">
+              </div>
+            </div>
+
+            <div class="bg-slate-950 rounded p-3 text-xs font-mono text-amber-300 space-y-1">
+              <div>ufw default deny incoming</div>
+              <div>ufw allow 80/tcp   <span class="text-slate-500"># HTTP</span></div>
+              <div>ufw allow 443/tcp  <span class="text-slate-500"># HTTPS</span></div>
+              <div>ufw deny 3306/tcp  <span class="text-slate-500"># Aísla MySQL</span></div>
+              <div>ufw --force enable</div>
+            </div>
+
+            <button onclick="applyFirewall()"
+                    class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded-lg text-sm shadow-lg transition-all flex justify-center items-center gap-2">
+              <i class="fas fa-bolt"></i> Aplicar en <span id="fw-target-label" class="font-mono"><?= $ip ?: '—' ?></span>
+            </button>
+
+            <div id="fw-result" class="hidden text-xs font-mono bg-black rounded p-3 text-emerald-400 whitespace-pre-wrap max-h-32 overflow-y-auto"></div>
+          </div>
+        </div>
+
+      </div><!-- /LEFT -->
+
+      <!-- RIGHT COLUMN -->
+      <div class="space-y-6">
+
+        <!-- Forensics via SSH -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg p-4">
+          <h3 class="font-bold text-white text-lg mb-1">
+            <i class="fas fa-microscope text-purple-500 mr-2"></i> Análisis Forense en Vivo
+          </h3>
+          <p class="text-xs text-slate-400 mb-4">Inspecciona conexiones, usuarios activos e intentos de intrusión vía SSH.</p>
+
+          <div id="forensics-form" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <div id="forensics-error" class="hidden text-xs text-red-400 bg-red-500/10 p-2 rounded border border-red-500/20"></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 uppercase">Usuario Linux</label>
+                <input id="f-user" type="text" value="root" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 uppercase">Contraseña</label>
+                <input id="f-pass" type="password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none">
+              </div>
+            </div>
+            <button onclick="runForensics()"
+                    class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-sm shadow-lg shadow-purple-500/20 transition-all flex justify-center items-center gap-2">
+              <i class="fas fa-key"></i> Inspección Profunda
+            </button>
+          </div>
+
+          <div id="forensics-results" class="hidden space-y-3 mt-3">
+            <div>
+              <p class="text-xs text-red-400 font-bold uppercase tracking-wider mb-1">Ataques recientes (auth.log)</p>
+              <div id="f-ataques" class="bg-black p-3 rounded border border-red-500/30 text-[10px] font-mono text-red-400 h-20 overflow-y-auto whitespace-pre-wrap"></div>
+            </div>
+            <div>
+              <p class="text-xs text-sky-400 font-bold uppercase tracking-wider mb-1">Conexiones establecidas</p>
+              <div id="f-conexiones" class="bg-black p-3 rounded border border-sky-500/30 text-[10px] font-mono text-sky-300 h-20 overflow-y-auto whitespace-pre-wrap"></div>
+            </div>
+            <div>
+              <p class="text-xs text-emerald-400 font-bold uppercase tracking-wider mb-1">Usuarios autenticados</p>
+              <div id="f-usuarios" class="bg-black p-3 rounded border border-emerald-500/30 text-[10px] font-mono text-emerald-300 h-16 overflow-y-auto whitespace-pre-wrap"></div>
+            </div>
+            <button onclick="resetForensics()" class="text-xs text-slate-500 hover:text-white transition-all">
+              <i class="fas fa-rotate-left mr-1"></i> Nueva conexión
+            </button>
+          </div>
+        </div>
+
+        <!-- SSH Terminal -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden">
+          <div class="bg-slate-800 px-4 py-3 flex justify-between items-center">
+            <h3 class="font-bold text-white text-sm">
+              <i class="fas fa-terminal text-green-400 mr-2"></i> Terminal SSH Interactiva
+            </h3>
+            <div class="flex items-center gap-2">
+              <span id="term-status" class="text-xs text-slate-500">Desconectado</span>
+              <button id="term-disconnect-btn" onclick="disconnectTerminal()" class="hidden text-xs bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded transition-all">Desconectar</button>
+            </div>
+          </div>
+
+          <!-- Login form -->
+          <div id="term-login" class="p-4 bg-slate-950 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 uppercase">Usuario</label>
+                <input id="t-user" type="text" value="root" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-green-500">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 uppercase">Contraseña</label>
+                <input id="t-pass" type="password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-green-500">
+              </div>
+            </div>
+            <button onclick="connectTerminal()"
+                    class="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-2 rounded-lg text-sm flex justify-center items-center gap-2 transition-all">
+              <i class="fas fa-plug"></i> Conectar Terminal
+            </button>
+            <div id="term-error" class="hidden text-xs text-red-400 bg-red-500/10 p-2 rounded border border-red-500/20"></div>
+          </div>
+
+          <!-- Active terminal (hidden until connected) -->
+          <div id="term-active" class="hidden">
+            <div id="ssh-terminal"></div>
+            <div id="ssh-input-line">
+              <span id="ssh-prompt">$</span>
+              <input id="ssh-cmd" type="text" autocomplete="off" spellcheck="false"
+                     placeholder="escribe un comando y pulsa Enter…"
+                     onkeydown="handleTermKey(event)">
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /RIGHT -->
     </div>
-    <?php endif; ?>
+  </div><!-- /results-area -->
 </main>
+
+<script>
+/* ====================================================
+   ESTADO GLOBAL
+==================================================== */
+let currentIp = <?= json_encode($ip) ?>;
+let sshSessionId = null;
+let cmdHistory = [];
+let histIdx = -1;
+
+/* ====================================================
+   1. ESCANEO NMAP ASÍNCRONO
+==================================================== */
+function startScan() {
+  const ip = document.getElementById('scan-ip').value.trim();
+  if (!ip) return alert('Introduce una IP o dominio.');
+  currentIp = ip;
+
+  // Update URL without reload
+  history.pushState({}, '', `scanner.php?ip=${encodeURIComponent(ip)}`);
+
+  // Show results area
+  document.getElementById('results-area').classList.remove('hidden');
+  document.getElementById('fw-target-label').textContent = ip;
+
+  // Reset panels
+  document.getElementById('nmap-output').textContent = '⏳ Iniciando escaneo nmap -F -sV…';
+  document.getElementById('nmap-status').innerHTML = '<span class="spin">⟳</span> Escaneando…';
+  document.getElementById('recomendaciones').innerHTML = '<p class="text-slate-500 text-xs">Esperando resultados…</p>';
+
+  fetch(`api/scan_async.php?ip=${encodeURIComponent(ip)}`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('nmap-output').textContent = data.nmap || 'Sin resultados.';
+      document.getElementById('nmap-status').textContent = '✓ Completado';
+      renderRecomendaciones(data.recomendaciones || []);
+    })
+    .catch(() => {
+      document.getElementById('nmap-output').textContent = 'Error al contactar el servidor de escaneo.';
+      document.getElementById('nmap-status').textContent = '✗ Error';
+    });
+}
+
+function renderRecomendaciones(recs) {
+  const colorMap = { CRÍTICO: 'badge-critico', ALTO: 'badge-alto', MEDIO: 'badge-medio', BAJO: 'badge-bajo' };
+  const container = document.getElementById('recomendaciones');
+  if (!recs.length) {
+    container.innerHTML = '<p class="text-slate-500 text-xs">Sin recomendaciones.</p>';
+    return;
+  }
+  container.innerHTML = recs.map(r => `
+    <div class="bg-slate-950 p-3 rounded border border-slate-800 flex items-start gap-3">
+      <span class="text-xs font-bold px-2 py-1 rounded ${colorMap[r.riesgo] || 'badge-bajo'}">${r.riesgo}</span>
+      <p class="text-sm text-slate-300">${r.msg}</p>
+    </div>`).join('');
+}
+
+// Auto-scan si hay IP en URL
+if (currentIp) startScan();
+
+/* ====================================================
+   2. ANÁLISIS FORENSE
+==================================================== */
+function runForensics() {
+  const user = document.getElementById('f-user').value.trim();
+  const pass = document.getElementById('f-pass').value;
+  const errEl = document.getElementById('forensics-error');
+  errEl.classList.add('hidden');
+
+  if (!user || !pass) { errEl.textContent = 'Completa usuario y contraseña.'; errEl.classList.remove('hidden'); return; }
+
+  const btn = event.target;
+  btn.innerHTML = '<span class="spin">⟳</span> Conectando…';
+  btn.disabled = true;
+
+  fetch('api/forensics.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: currentIp, user, pass })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'error') {
+      errEl.textContent = data.message;
+      errEl.classList.remove('hidden');
+      btn.innerHTML = '<i class="fas fa-key"></i> Inspección Profunda';
+      btn.disabled = false;
+      return;
+    }
+    document.getElementById('f-ataques').textContent    = data.ataques    || 'Sin ataques detectados.';
+    document.getElementById('f-conexiones').textContent = data.conexiones || 'Sin conexiones.';
+    document.getElementById('f-usuarios').textContent   = data.usuarios   || 'Sin usuarios.';
+    document.getElementById('forensics-form').classList.add('hidden');
+    document.getElementById('forensics-results').classList.remove('hidden');
+  })
+  .catch(() => {
+    errEl.textContent = 'Error de red.';
+    errEl.classList.remove('hidden');
+    btn.innerHTML = '<i class="fas fa-key"></i> Inspección Profunda';
+    btn.disabled = false;
+  });
+}
+
+function resetForensics() {
+  document.getElementById('forensics-form').classList.remove('hidden');
+  document.getElementById('forensics-results').classList.add('hidden');
+}
+
+/* ====================================================
+   3. FIREWALL
+==================================================== */
+function applyFirewall() {
+  const user = document.getElementById('fw-user').value.trim();
+  const pass = document.getElementById('fw-pass').value;
+  const resultEl = document.getElementById('fw-result');
+
+  if (!user || !pass) { alert('Introduce credenciales SSH para el servidor objetivo.'); return; }
+  if (!currentIp)     { alert('Primero introduce y escanea una IP.'); return; }
+
+  resultEl.textContent = '⏳ Aplicando reglas…';
+  resultEl.classList.remove('hidden');
+
+  fetch('firewall_exec.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ host: currentIp, user, pass })
+  })
+  .then(r => r.json())
+  .then(data => {
+    resultEl.textContent = (data.status === 'success' ? '✓ ' : '✗ ') + data.message + (data.output ? '\n\n' + data.output : '');
+    resultEl.style.color = data.status === 'success' ? '#4ade80' : '#f87171';
+  })
+  .catch(() => { resultEl.textContent = '✗ Error de red.'; resultEl.style.color = '#f87171'; });
+}
+
+/* ====================================================
+   4. TERMINAL SSH INTERACTIVA
+==================================================== */
+function termWrite(text, cls = '') {
+  const term = document.getElementById('ssh-terminal');
+  const line = document.createElement('span');
+  if (cls) line.className = cls;
+  line.textContent = text;
+  term.appendChild(line);
+  term.scrollTop = term.scrollHeight;
+}
+
+function connectTerminal() {
+  const user = document.getElementById('t-user').value.trim();
+  const pass = document.getElementById('t-pass').value;
+  const errEl = document.getElementById('term-error');
+  errEl.classList.add('hidden');
+
+  if (!user || !pass) { errEl.textContent = 'Completa usuario y contraseña.'; errEl.classList.remove('hidden'); return; }
+  if (!currentIp)     { errEl.textContent = 'Escanea primero una IP objetivo.'; errEl.classList.remove('hidden'); return; }
+
+  document.getElementById('term-status').textContent = '⟳ Conectando…';
+
+  fetch('api/ssh_session.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'connect', ip: currentIp, user, pass })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status !== 'ok') {
+      errEl.textContent = data.message;
+      errEl.classList.remove('hidden');
+      document.getElementById('term-status').textContent = 'Error';
+      return;
+    }
+    sshSessionId = data.session_id;
+    document.getElementById('term-login').classList.add('hidden');
+    document.getElementById('term-active').classList.remove('hidden');
+    document.getElementById('term-disconnect-btn').classList.remove('hidden');
+    document.getElementById('term-status').innerHTML = `<span class="text-green-400">● Conectado</span> como <b>${user}@${currentIp}</b>`;
+    document.getElementById('ssh-prompt').textContent = `${user}@${currentIp}:~$`;
+    document.getElementById('ssh-terminal').textContent = '';
+    termWrite(`Conectado a ${currentIp}\n`, 'text-green-400');
+    document.getElementById('ssh-cmd').focus();
+  })
+  .catch(() => {
+    errEl.textContent = 'Error de red al intentar conectar.';
+    errEl.classList.remove('hidden');
+    document.getElementById('term-status').textContent = 'Error';
+  });
+}
+
+function handleTermKey(e) {
+  const input = document.getElementById('ssh-cmd');
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (histIdx < cmdHistory.length - 1) { histIdx++; input.value = cmdHistory[cmdHistory.length - 1 - histIdx]; }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (histIdx > 0) { histIdx--; input.value = cmdHistory[cmdHistory.length - 1 - histIdx]; }
+    else { histIdx = -1; input.value = ''; }
+    return;
+  }
+  if (e.key !== 'Enter') return;
+
+  const cmd = input.value.trim();
+  input.value = '';
+  histIdx = -1;
+  if (!cmd) return;
+
+  cmdHistory.push(cmd);
+  const prompt = document.getElementById('ssh-prompt').textContent;
+  termWrite(`\n${prompt} ${cmd}\n`, 'text-slate-300');
+
+  if (cmd === 'clear') { document.getElementById('ssh-terminal').textContent = ''; return; }
+  if (cmd === 'exit')  { disconnectTerminal(); return; }
+
+  fetch('api/ssh_session.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'exec', session_id: sshSessionId, cmd })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'ok') {
+      termWrite(data.output || '', 'text-emerald-300');
+    } else {
+      termWrite(data.message + '\n', 'text-red-400');
+    }
+  })
+  .catch(() => termWrite('Error de comunicación con el servidor.\n', 'text-red-400'));
+}
+
+function disconnectTerminal() {
+  if (sshSessionId) {
+    fetch('api/ssh_session.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'disconnect', session_id: sshSessionId })
+    }).catch(() => {});
+    sshSessionId = null;
+  }
+  document.getElementById('term-active').classList.add('hidden');
+  document.getElementById('term-login').classList.remove('hidden');
+  document.getElementById('term-disconnect-btn').classList.add('hidden');
+  document.getElementById('term-status').textContent = 'Desconectado';
+  document.getElementById('t-pass').value = '';
+}
+</script>
 
 <?php include 'views/footer.php'; ?>
