@@ -1,88 +1,134 @@
 #!/bin/bash
 
-# Colores para la terminal
+# ===========================
+#  CyberAudit Hub Installer
+# ===========================
+
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # Sin color
+NC='\033[0m'
 
 echo -e "${BLUE}===========================================${NC}"
 echo -e "${BLUE}   CyberAudit Hub - Instalador Automático  ${NC}"
 echo -e "${BLUE}        Despliegue en Puerto 8080          ${NC}"
 echo -e "${BLUE}===========================================${NC}"
 
-# 1. Función para instalar Docker y Git si no existen
+# Detectar si es Ubuntu
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "$ID" != "ubuntu" ]]; then
+            echo -e "${RED}[ERROR] Este instalador solo funciona en Ubuntu.${NC}"
+            exit 1
+        fi
+    fi
+}
+
+# Instalar dependencias en Ubuntu
 install_dependencies() {
     echo -e "${YELLOW}[+] Instalando dependencias (Git, Docker)...${NC}"
+
     sudo apt-get update -y
     sudo apt-get install -y git curl lsof ca-certificates gnupg
 
-    # Añadir clave GPG oficial de Docker
+    # Instalar Docker
     sudo install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-    # Añadir repositorio de Docker
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-    # Instalar Docker
     sudo apt-get update -y
     sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-    # Añadir usuario actual al grupo docker (para no usar sudo siempre)
     sudo usermod -aG docker $USER
-    echo -e "${GREEN}[+] Dependencias instaladas correctamente.${NC}"
-    echo -e "${YELLOW}[!] AVISO: Si es la primera vez que instalas Docker, es posible que necesites cerrar sesión y volver a entrar, o ejecutar 'newgrp docker' para que los permisos surtan efecto.${NC}"
+
+    echo -e "${GREEN}[+] Docker y Git instalados correctamente.${NC}"
 }
 
-# 2. Verificar dependencias e instalar si falta
+# Aplicar grupo docker sin cerrar sesión
+apply_docker_group() {
+    newgrp docker <<EONG
+echo "Grupo docker aplicado"
+EONG
+}
+
+# Crear archivo .env si no existe
+create_env_file() {
+    if [ ! -f .env ]; then
+        echo -e "${YELLOW}[+] Creando archivo .env por defecto...${NC}"
+        cat <<EOF > .env
+DB_NAME=cyberaudit
+DB_USER=cyberuser
+DB_PASSWORD=superpassword
+DB_ROOT_PASSWORD=rootpassword
+REDIS_PASSWORD=redispass
+LDAP_ADMIN_PASSWORD=adminpass
+SHODAN_API_KEY=
+EOF
+    fi
+}
+
+# Detectar IP pública
+detect_public_ip() {
+    PUBLIC_IP=$(curl -s ifconfig.me || echo "")
+    if [[ -z "$PUBLIC_IP" ]]; then
+        ACCESS_URL="http://127.0.0.1:8080"
+    else
+        ACCESS_URL="http://$PUBLIC_IP:8080"
+    fi
+}
+
+# ===========================
+#  EJECUCIÓN PRINCIPAL
+# ===========================
+
+detect_os
+
+# Instalar dependencias si faltan
 for cmd in docker git; do
-    if ! [ -x "$(command -v $cmd)" ]; then
-        echo -e "${YELLOW}[!] $cmd no encontrado. Iniciando instalación...${NC}"
+    if ! command -v $cmd >/dev/null 2>&1; then
         install_dependencies
+        apply_docker_group
         break
     fi
 done
 
-# 3. Verificar si el puerto 8080 está ocupado (de forma segura)
-if command -v lsof >/dev/null 2>&1 && lsof -Pi :8080 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
-    echo -e "${YELLOW}Aviso: El puerto 8080 ya está en uso. Revisa tus servicios.${NC}"
-fi
-
-# 4. Gestión del repositorio
+# Clonar o actualizar repositorio
 REPO_URL="https://github.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7.git"
 TARGET_DIR="ProjecteFinal_G7"
 
 if [ -d "$TARGET_DIR" ]; then
-    echo -e "${BLUE}[+] Entrando en la carpeta existente...${NC}"
-    cd "$TARGET_DIR" || exit
-    git pull origin main
+    echo -e "${BLUE}[+] Actualizando repositorio...${NC}"
+    cd "$TARGET_DIR" && git pull origin main
 else
     echo -e "${GREEN}[+] Clonando repositorio...${NC}"
     git clone $REPO_URL
-    cd "$TARGET_DIR" || exit
+    cd "$TARGET_DIR"
 fi
 
-# 5. Arreglar permisos y preparar directorios
-echo -e "${GREEN}[+] Configurando entorno y permisos...${NC}"
+# Crear .env
+create_env_file
+
+# Crear directorios necesarios
 mkdir -p redis_data ldap_config config/nginx g7_src/views
 sudo chown -R $USER:$USER .
 
-# 6. Levantar Docker (Usando 'docker compose' moderno en lugar de 'docker-compose')
+# Levantar contenedores
 echo -e "${GREEN}[+] Iniciando contenedores (Build)...${NC}"
 docker compose up -d --build
 
-# 7. Finalización
+# Detectar IP pública
+detect_public_ip
+
 echo -e "${BLUE}===========================================${NC}"
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ ¡CyberAudit Hub está operativo!${NC}"
-    echo -e "${BLUE}Acceso:${NC} http://localhost:8080"
-    echo -e "${YELLOW}Nota:${NC} Si no carga, revisa el mapeo de puertos en docker-compose.yml"
-    echo -e "${BLUE}Servicios actuales:${NC}"
-    docker compose ps
-else
-    echo -e "${RED}❌ El despliegue ha fallado.${NC}"
-    echo -e "${YELLOW}Tip:${NC} Si el error es de permisos de Docker, ejecuta 'newgrp docker' y vuelve a correr el script."
-fi
+echo -e "${GREEN}✅ ¡CyberAudit Hub está operativo!${NC}"
+echo -e "${BLUE}Acceso:${NC} $ACCESS_URL"
+echo -e "${BLUE}Servicios actuales:${NC}"
+docker compose ps
 echo -e "${BLUE}===========================================${NC}"
