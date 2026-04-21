@@ -1,255 +1,104 @@
-## 🚀 Quick Deployment Guide: CyberAudit Hub (Port 8080)
+Aquí teniu una guia ràpida i directa per desplegar el nostre projecte **CybePyme**. Està tot automatitzat perquè només hàgim de llançar una comanda i llestos.
 
-This guide provides a **clean, professional** way to deploy *CyberAudit Hub* on **Ubuntu/Debian** using Docker Compose v2.  
-It includes an improved `deploy.sh` that:
+### 1. Connexió al Servidor (SSH)
 
-- Installs **only missing** dependencies (Git, Docker Engine, Docker Compose plugin, etc.).
-- Uses **idempotent checks** (won’t reinstall what you already have).
-- **Does not remove existing dependencies** (removing Docker/Git automatically is risky and can break other projects).  
-  If you really want an optional “cleanup/uninstall” mode, tell me and I’ll add a `--uninstall` flag.
+Primer, hem d'entrar a la màquina d'AWS.
 
----
+1.  **Baixeu la clau d'accés (`vockey.pem`)**:
+    [https://drive.google.com/file/d/10NKAE9waCh9OtFUaGFFJ-ZP5xLfD7hV5/view?usp=sharing](https://drive.google.com/file/d/10NKAE9waCh9OtFUaGFFJ-ZP5xLfD7hV5/view?usp=sharing)
 
-## 1) Prerequisites
+2.  **Doneu-li els permisos correctes** (només lectura per a tu):
+    ```bash
+    chmod 600 vockey.pem
+    ```
 
-- Ubuntu/Debian machine (server or local)
-- A user with `sudo` privileges
-- Internet access
+3.  **Connecteu-vos al servidor**:
+    ```bash
+    ssh -i "vockey.pem" ubuntu@ec2-32-194-186-97.compute-1.amazonaws.com
+    ```
 
----
+Un cop a dins, assegureu-vos que els ports **80 (HTTP)** i **443 (HTTPS)** estan oberts al Security Group d'AWS.
 
-## 2) Create the deployment script
+### 2. Instal·lació (1 comanda i a córrer)
 
+Ja dins del servidor, executeu això. No cal clonar el repo ni instal·lar res a mà.
+
+#### Amb `curl` (recomanat):
 ```bash
-nano deploy.sh
+curl -sSL https://raw.githubusercontent.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/main/scripts/project_setup.sh | sudo bash
 ```
 
-Paste the following script, save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`).
-
+#### O amb `wget`:
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-# ==========================
-# Colors
-# ==========================
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log()  { echo -e "${BLUE}[i]${NC} $*"; }
-ok()   { echo -e "${GREEN}[✓]${NC} $*"; }
-warn() { echo -e "${YELLOW}[!]${NC} $*"; }
-err()  { echo -e "${RED}[x]${NC} $*"; }
-
-# ==========================
-# Config
-# ==========================
-REPO_URL="https://github.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7.git"
-TARGET_DIR="ProjecteFinal_G7"
-BRANCH="main"
-PORT="8080"
-
-# ==========================
-# Helpers
-# ==========================
-have_cmd() { command -v "$1" >/dev/null 2>&1; }
-
-require_sudo() {
-  if ! have_cmd sudo; then
-    err "sudo is required but not installed."
-    exit 1
-  fi
-}
-
-is_debian_like() {
-  [[ -f /etc/debian_version ]]
-}
-
-install_apt_packages() {
-  local pkgs=("$@")
-  log "Updating apt cache..."
-  sudo apt-get update -y
-
-  log "Installing packages: ${pkgs[*]}"
-  sudo apt-get install -y "${pkgs[@]}"
-}
-
-setup_docker_repo_if_needed() {
-  # If docker is already installed, we don't need to add the repo.
-  if have_cmd docker; then
-    ok "Docker is already installed. Skipping Docker repository setup."
-    return
-  fi
-
-  log "Adding Docker official APT repository..."
-  install_apt_packages ca-certificates curl gnupg
-
-  sudo install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
-    | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-
-  ok "Docker APT repository added."
-}
-
-install_dependencies() {
-  require_sudo
-
-  if ! is_debian_like; then
-    err "This script supports Ubuntu/Debian only. Install Docker manually for other distributions."
-    exit 1
-  fi
-
-  # Base tools
-  local base_pkgs=(git curl lsof)
-  log "Ensuring base dependencies are installed..."
-  install_apt_packages "${base_pkgs[@]}"
-  ok "Base dependencies installed."
-
-  # Docker (only if missing)
-  if ! have_cmd docker; then
-    setup_docker_repo_if_needed
-    log "Installing Docker Engine + Compose plugin..."
-    sudo apt-get update -y
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    ok "Docker installed."
-  else
-    ok "Docker already present. Skipping installation."
-  fi
-
-  # Ensure docker compose is available
-  if docker compose version >/dev/null 2>&1; then
-    ok "Docker Compose v2 is available."
-  else
-    warn "Docker is installed but 'docker compose' is not available. Trying to install docker-compose-plugin..."
-    sudo apt-get update -y
-    sudo apt-get install -y docker-compose-plugin
-    ok "docker-compose-plugin installed."
-  fi
-
-  # Add current user to docker group (safe to repeat)
-  if getent group docker >/dev/null 2>&1; then
-    sudo usermod -aG docker "$USER" || true
-    ok "User '$USER' added to docker group (if not already)."
-  else
-    warn "Docker group not found. This can happen if Docker installation did not complete correctly."
-  fi
-}
-
-check_port() {
-  if have_cmd lsof && lsof -Pi :"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
-    warn "Port ${PORT} is already in use. The stack may fail to bind."
-    warn "You can inspect the process with: sudo lsof -i :${PORT}"
-  else
-    ok "Port ${PORT} appears free."
-  fi
-}
-
-sync_repo() {
-  if [[ -d "$TARGET_DIR/.git" ]]; then
-    log "Repository already exists. Updating..."
-    cd "$TARGET_DIR"
-    git fetch origin
-    git checkout "$BRANCH"
-    git pull origin "$BRANCH"
-    ok "Repository updated."
-  else
-    log "Cloning repository..."
-    git clone "$REPO_URL" "$TARGET_DIR"
-    cd "$TARGET_DIR"
-    ok "Repository cloned."
-  fi
-}
-
-prepare_dirs() {
-  log "Preparing directories and permissions..."
-  mkdir -p redis_data ldap_config config/nginx g7_src/views
-
-  # Avoid sudo chown when not necessary, but ensure current user owns the folder
-  sudo chown -R "$USER":"$USER" .
-  ok "Directories and permissions ready."
-}
-
-start_stack() {
-  log "Building and starting containers..."
-  docker compose up -d --build
-  ok "Containers started."
-}
-
-post_info() {
-  echo -e "${BLUE}===========================================${NC}"
-  ok "CyberAudit Hub is up (if all services are healthy)."
-  log "Access: http://localhost:${PORT}"
-  log "Running services:"
-  docker compose ps
-  echo -e "${BLUE}===========================================${NC}"
-
-  warn "If you get a Docker permission error, run:"
-  echo "  newgrp docker"
-  warn "Then re-run:"
-  echo "  ./deploy.sh"
-}
-
-main() {
-  echo -e "${BLUE}===========================================${NC}"
-  echo -e "${BLUE}      CyberAudit Hub - Deployment Script   ${NC}"
-  echo -e "${BLUE}              Target Port: ${PORT}              ${NC}"
-  echo -e "${BLUE}===========================================${NC}"
-
-  install_dependencies
-  check_port
-  sync_repo
-  prepare_dirs
-  start_stack
-  post_info
-}
-
-main "$@"
+wget -qO- https://raw.githubusercontent.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/main/scripts/project_setup.sh | sudo bash
 ```
 
----
+**Què fa l'script?**
+*   Instal·la Docker, clona el repo, crea el `.env`, ajusta el `docker-compose.yml` i aixeca tots els contenidors.
+*   Al final, us donarà la **IP pública** per accedir a la plataforma.
 
-## 3) Run it
+### 3. (Opcional) Posar-li HTTPS
 
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
-
----
-
-## Notes / Troubleshooting
-
-### Docker permissions
-If Docker was installed for the first time, you may need to refresh group membership:
+Si voleu que la connexió sigui segura, necessiteu un domini que apunti a la IP del servidor. Un cop el tingueu, llanceu aquest altre script:
 
 ```bash
-newgrp docker
-./deploy.sh
+curl -sSL https://raw.githubusercontent.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/main/scripts/enable_https.sh | sudo bash
 ```
 
-Or log out and back in (SSH reconnect).
+L'script ho configurarà tot automàticament (Nginx, certificat SSL, etc.) i ja tindreu la web amb el cadenat verd! 🔒
 
-### Port 8080 already in use
-The script warns you, but it doesn’t kill anything automatically. If you want the script to **offer to stop the conflicting service** or to **auto-switch to another port**, tell me.
+Qualsevol dubte, ho comentem!
 
 ---
+---
 
-## About “remove dependencies if they already exist”
-Automatically uninstalling packages just because they’re already installed is **not a best practice** (it can break other apps and CI setups). What I can do instead:
+## Versió per a Professors (Formal i Actualitzada)
 
-- Add a `--uninstall` option that removes Docker + related packages **only if you explicitly request it**.
-- Add a `--purge` mode to remove volumes/images too (dangerous, but sometimes desired).
+Benvolguts professors,
 
-Tell me which behavior you want:
-1) `--uninstall` (remove packages)  
-2) `--purge` (remove packages + docker data)  
-3) No removal (recommended, current script)
+A continuació, es presenta el manual de desplegament del projecte **CyberAudit Hub**, dissenyat per a una execució automatitzada i eficient.
+
+### 1. Accés a l'Entorn de Desplegament
+
+El primer pas consisteix a establir una connexió segura amb el servidor assignat mitjançant SSH.
+
+1.  **Obtenció de la Clau d'Accés**: La clau privada (`vockey.pem`), necessària per a l'autenticació, es troba disponible al següent enllaç:
+    [URL de la clau vockey.pem](https://drive.google.com/file/d/10NKAE9waCh9OtFUaGFFJ-ZP5xLfD7hV5/view?usp=sharing)
+
+2.  **Ajust de Permisos**: Per motius de seguretat, és imperatiu restringir els permisos del fitxer de la clau.
+    ```bash
+    chmod 600 vockey.pem
+    ```
+
+3.  **Connexió al Servidor**: Executeu la següent comanda per accedir al terminal del servidor.
+    ```bash
+    ssh -i "vockey.pem" ubuntu@ec2-32-194-186-97.compute-1.amazonaws.com
+    ```
+
+**Requisits de Xarxa**: Un cop establerta la connexió, cal verificar que el tallafocs de l'entorn (ex. AWS Security Group) permet trànsit entrant als ports `80/tcp` i `443/tcp`.
+
+### 2. Procediment d'Instal·lació Automatitzada
+
+Un cop dins del servidor, el desplegament de l'arquitectura es realitza mitjançant un únic script d'inicialització.
+
+#### Opció 1: Mitjançant `curl` (Mètode recomanat)
+```bash
+curl -sSL https://raw.githubusercontent.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/main/scripts/project_setup.sh | sudo bash
+```
+
+#### Opció 2: Mitjançant `wget`
+```bash
+wget -qO- https://raw.githubusercontent.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/main/scripts/project_setup.sh | sudo bash
+```
+
+Aquest script s'encarrega de validar el sistema, instal·lar dependències (Docker), gestionar el codi font, configurar l'entorn (`.env`, `docker-compose.yml`) i orquestrar tots els serveis. En finalitzar, informa de la URL d'accés.
+
+### 3. (Opcional) Activació del Protocol HTTPS
+
+Per a un entorn de producció, es facilita un segon script per configurar HTTPS amb un certificat de Let's Encrypt. Aquest pas requereix un nom de domini públic apuntant a la IP del servidor.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/main/scripts/enable_https.sh | sudo bash
+```
+
+El procés automatitza la instal·lació de Nginx, la generació del certificat SSL i la configuració de la renovació automàtica, assegurant una connexió segura a llarg termini.
