@@ -1,491 +1,473 @@
 <?php
-include 'db_conn.php';
-include 'views/header.php';
-
-$ip = htmlspecialchars($_GET['ip'] ?? '');
+/**
+ * ============================================================================
+ * CYBERPYME SOC v5.0.0 - MODULE 01: PERIMETER SCANNER (FINAL COMMIT)
+ * ============================================================================
+ */
+header("X-XSS-Protection: 1; mode=block");
+header("X-Content-Type-Options: nosniff");
+header("Referrer-Policy: strict-origin-when-cross-origin");
 ?>
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CyberPYME SOC - Escáner Perimetral G12">
+    <meta name="theme-color" content="#0ea5e9">
+    <title>Scanner G12 | CyberPYME SOC</title>
 
-<style>
-  /* ── Terminal SSH ── */
-  #ssh-terminal {
-    background: #0a0a0f;
-    color: #00ff9f;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    font-size: 12px;
-    padding: 12px;
-    height: 340px;
-    overflow-y: auto;
-    border-radius: 0 0 8px 8px;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-  #ssh-input-line {
-    display: flex;
-    align-items: center;
-    background: #0a0a0f;
-    border-top: 1px solid #1e3a2f;
-    padding: 6px 12px;
-    border-radius: 0 0 8px 8px;
-  }
-  #ssh-prompt { color: #00ff9f; margin-right: 6px; font-family: monospace; font-size: 12px; white-space: nowrap; }
-  #ssh-cmd { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-family: monospace; font-size: 12px; }
+    <!-- FAVICON SVG INLINE -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%230ea5e9'/%3E%3Cstop offset='100%25' stop-color='%231d4ed8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Cpath d='M32 10 L48 18 L48 34 C48 44 40 52 32 54 C24 52 16 44 16 34 L16 18 Z' fill='none' stroke='white' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M26 32 L30 36 L38 28' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
 
-  /* Spinner */
-  .spin { animation: spin 1s linear infinite; display: inline-block; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  /* Nmap output */
-  #nmap-output {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    background: #000;
-    color: #34d399;
-    padding: 12px;
-    height: 220px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    border-radius: 0 0 8px 8px;
-  }
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+        
+        :root { 
+            --accent-primary: #0ea5e9; 
+            --accent-secondary: #10b981;
+        }
 
-  /* Risk badges */
-  .badge-critico  { background:#7f1d1d; color:#fca5a5; }
-  .badge-alto     { background:#431407; color:#fb923c; }
-  .badge-medio    { background:#422006; color:#fbbf24; }
-  .badge-bajo     { background:#052e16; color:#4ade80; }
-</style>
+        .goog-te-banner-frame { display: none !important; }
+        .goog-tooltip { display: none !important; }
+        body { top: 0px !important; position: static !important; font: inherit !important; }
+        font { background-color: transparent !important; box-shadow: none !important; color: inherit !important; }
+        #google_translate_element { position: absolute !important; left: -9999px !important; top: -9999px !important; z-index: -999 !important; }
 
-<main class="max-w-7xl mx-auto py-8 px-4">
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            transition: background-color 0.5s ease, color 0.5s ease;
+            overflow-x: hidden;
+        }
 
-  <!-- Header -->
-  <div class="mb-8 flex items-center justify-between">
-    <div>
-      <h1 class="text-3xl font-bold text-white">
-        <i class="fas fa-satellite-dish text-sky-500 mr-2"></i> Auditoría Avanzada
-      </h1>
-      <p class="text-slate-400 text-sm mt-1">Superficie de ataque externa · Forense SSH · Terminal remota.</p>
+        .dark-mode { background-color: #030712; color: #f8fafc; }
+        .light-mode { background-color: #f1f5f9; color: #0f172a; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 1.5rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .light-mode .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+        }
+
+        .grid-overlay {
+            position: fixed; inset: 0; z-index: -1;
+            background-image: linear-gradient(to right, rgba(30, 41, 59, 0.15) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(30, 41, 59, 0.15) 1px, transparent 1px);
+            background-size: 40px 40px; pointer-events: none;
+            mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+        }
+        .bg-glow {
+            position: fixed; top: -10%; left: -10%; width: 50vw; height: 50vw;
+            background: radial-gradient(circle, rgba(14,165,233,0.05) 0%, rgba(0,0,0,0) 70%);
+            z-index: -1; pointer-events: none;
+        }
+
+        .lang-container { position: relative; z-index: 1000; }
+        .lang-dropdown {
+            visibility: hidden; opacity: 0;
+            position: absolute; top: 120%; right: 0;
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 1rem; width: 160px;
+            transform: translateY(-10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+        }
+        .light-mode .lang-dropdown { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+        .lang-container:hover .lang-dropdown { visibility: visible; opacity: 1; transform: translateY(0); }
+
+        .mono-tech { font-family: 'JetBrains Mono', monospace; }
+        .terminal-bg { background-color: #010409; }
+
+        @keyframes pulse-border {
+            0% { border-color: rgba(14, 165, 233, 0.3); }
+            50% { border-color: rgba(14, 165, 233, 0.8); }
+            100% { border-color: rgba(14, 165, 233, 0.3); }
+        }
+        .scanning-active { animation: pulse-border 2s infinite; }
+
+        /* Inputs styled to match the theme */
+        .soc-input {
+            width: 100%;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgb(51 65 85);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            color: white;
+            outline: none;
+            transition: all 0.3s ease;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .soc-input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 2px rgba(14,165,233,0.2); }
+        .light-mode .soc-input { background: rgba(255,255,255,0.8); border-color: #cbd5e1; color: #0f172a; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="dark-mode min-h-screen flex flex-col">
+
+    <div class="grid-overlay"></div>
+    <div class="bg-glow"></div>
+    <div id="google_translate_element"></div>
+
+    <!-- NAV -->
+    <nav class="sticky top-0 z-[100] border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/50">
+        <div class="max-w-7xl mx-auto px-6 h-24 flex justify-between items-center">
+            
+            <div class="flex items-center gap-5">
+                <a href="index.php" class="flex items-center gap-3 group">
+                    <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:bg-sky-500/10 group-hover:border-sky-500/30 transition-all">
+                        <i class="fas fa-chevron-left text-slate-500 group-hover:text-sky-400 transition-colors text-sm"></i>
+                    </div>
+                </a>
+                <div class="h-8 w-px bg-white/10"></div>
+                <div class="flex items-center gap-4 cursor-pointer" onclick="window.location='index.php'">
+                    <div class="w-12 h-12 bg-gradient-to-br from-sky-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/30 border border-white/10">
+                        <i class="fas fa-shield-halved text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-extrabold tracking-tighter uppercase">CYBER<span class="text-sky-500">PYME</span></h1>
+                        <div class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>
+                            <span class="text-[10px] mono-tech text-slate-400 font-bold tracking-[0.3em]">SCANNER MODULE 01</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4 md:gap-6">
+                <div class="lang-container hidden sm:block">
+                    <button class="bg-white/5 p-3 rounded-xl border border-white/10 flex items-center gap-3 hover:bg-white/10 hover:border-sky-500/50 transition-all focus:outline-none">
+                        <span id="current-lang-flag" class="text-xl drop-shadow-md">🇪🇸</span>
+                        <span id="current-lang-text" class="text-xs font-bold uppercase tracking-wider text-slate-300">ES</span>
+                        <i class="fas fa-chevron-down text-[10px] opacity-50 ml-1"></i>
+                    </button>
+                    <div class="lang-dropdown overflow-hidden">
+                        <button onclick="changeLanguage('es', '🇪🇸', 'ES')" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-sky-500/20 transition-colors border-b border-white/5"><span class="text-lg">🇪🇸</span> <span class="text-sm font-semibold">Español</span></button>
+                        <button onclick="changeLanguage('en', '🇺🇸', 'EN')" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-sky-500/20 transition-colors border-b border-white/5"><span class="text-lg">🇺🇸</span> <span class="text-sm font-semibold">English</span></button>
+                        <button onclick="changeLanguage('fr', '🇫🇷', 'FR')" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-sky-500/20 transition-colors border-b border-white/5"><span class="text-lg">🇫🇷</span> <span class="text-sm font-semibold">Français</span></button>
+                        <button onclick="changeLanguage('zh-CN', '🇨🇳', 'ZH')" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-sky-500/20 transition-colors"><span class="text-lg">🇨🇳</span> <span class="text-sm font-semibold">中文</span></button>
+                    </div>
+                </div>
+
+                <div class="h-8 w-px bg-white/10 hidden md:block"></div>
+
+                <button onclick="toggleTheme()" class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 hover:bg-white/10 hover:scale-105 transition-all">
+                    <i id="theme-icon" class="fas fa-sun text-amber-400 text-lg drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]"></i>
+                </button>
+
+                <div id="wallet-indicator" class="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold mono-tech">
+                    <i class="fas fa-circle text-[8px] animate-pulse"></i> WALLET CONNECTED
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- STATUS BAR -->
+    <div class="w-full bg-slate-900/80 border-b border-white/5 backdrop-blur-md hidden md:block">
+        <div class="max-w-7xl mx-auto px-6 py-2 flex justify-between items-center text-[11px] mono-tech text-slate-400">
+            <div class="flex gap-8">
+                <span><i class="fas fa-satellite text-sky-500 mr-2"></i>MODULE: <span class="text-white">PERIMETER SCANNER</span></span>
+                <span><i class="fas fa-crosshairs text-sky-500 mr-2"></i>ENGINE: <span class="text-white">NMAP v7.94</span></span>
+            </div>
+            <div class="flex gap-4">
+                <span>SCAN DEPTH: <span class="text-sky-500 font-bold">CONFIGURABLE</span></span>
+                <span>EXPORT: <span class="text-emerald-500 font-bold">PDF READY</span></span>
+            </div>
+        </div>
     </div>
-    <a href="index.php" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
-      <i class="fas fa-arrow-left mr-2"></i> Volver al Hub
-    </a>
-  </div>
 
-  <!-- Search bar -->
-  <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-8 shadow-lg">
-    <div class="flex gap-4">
-      <input id="scan-ip" type="text" value="<?= $ip ?>" placeholder="IP o dominio objetivo (ej: 192.168.1.1 o ejemplo.com)…"
-             class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-sky-500 outline-none">
-      <button onclick="startScan()" class="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2 rounded-lg font-bold shadow-lg shadow-sky-500/20 transition-all">
-        <i class="fas fa-crosshairs mr-2"></i>Escanear
-      </button>
-    </div>
-  </div>
+    <main class="max-w-7xl mx-auto px-6 py-10 flex-grow w-full">
 
-  <!-- Main grid (shown only after scan) -->
-  <div id="results-area" class="<?= $ip ? '' : 'hidden' ?>">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-      <!-- LEFT COLUMN -->
-      <div class="space-y-6">
-
-        <!-- Nmap panel -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-          <div class="bg-slate-800 px-4 py-3 flex justify-between items-center">
-            <h3 class="font-bold text-white text-sm">
-              <i class="fas fa-network-wired text-sky-500 mr-2"></i> Reconocimiento Nmap (Caja Negra)
-            </h3>
-            <span id="nmap-status" class="text-xs text-slate-400"></span>
-          </div>
-          <div id="nmap-output">Introduce una IP y pulsa Escanear…</div>
+        <!-- PAGE HEADER -->
+        <div class="mb-10">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-bold mb-4 tracking-widest">
+                <i class="fas fa-satellite"></i> MODULE 01 — ESCÁNER PERIMETRAL
+            </div>
+            <h2 class="text-4xl md:text-5xl font-extrabold leading-tight tracking-tight">
+                Análisis de <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-500">Superficie de Ataque</span>
+            </h2>
+            <p class="text-slate-400 mt-3 text-base max-w-2xl font-light">
+                Mapeo de puertos, servicios y vulnerabilidades. Inteligencia OSINT via motor NMAP integrado.
+            </p>
         </div>
 
-        <!-- Recommendations -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
-          <h3 class="font-bold text-white mb-4 text-sm">
-            <i class="fas fa-clipboard-check text-emerald-500 mr-2"></i> Recomendaciones de Mitigación
-          </h3>
-          <div id="recomendaciones" class="space-y-3">
-            <p class="text-slate-500 text-xs">Esperando resultados del escaneo…</p>
-          </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- SIDEBAR CONTROLES -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass-panel p-6 shadow-2xl">
+                    <h3 class="text-sm font-bold mb-6 flex items-center gap-2 text-sky-400 uppercase tracking-widest">
+                        <i class="fas fa-microchip"></i> Parámetros de Auditoría
+                    </h3>
+                    
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-2">IP / Dominio Objetivo</label>
+                            <input type="text" id="target" placeholder="127.0.0.1 o ejemplo.com" class="soc-input">
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-2">Perfil de Escaneo</label>
+                            <select id="type" class="soc-input cursor-pointer appearance-none">
+                                <option value="quick">Escaneo Rápido (Top Ports)</option>
+                                <option value="full">Escaneo de Servicios (Nmap -sV)</option>
+                                <option value="vuln">Detección de Vulns (--script vuln)</option>
+                            </select>
+                        </div>
+
+                        <button onclick="runAudit()" id="btn-run" class="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-sky-600/20 transition-all flex items-center justify-center gap-3 border border-sky-400/30 relative overflow-hidden group">
+                            <div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                            <i class="fas fa-bolt relative z-10"></i>
+                            <span class="relative z-10 tracking-widest uppercase text-sm">Lanzar Auditoría</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- INFO CARD -->
+                <div class="glass-panel p-6">
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-4">Perfiles Disponibles</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-3 p-3 rounded-lg bg-black/20 border border-white/5">
+                            <i class="fas fa-bolt text-sky-400 mt-0.5 text-sm"></i>
+                            <div>
+                                <p class="text-xs font-bold text-white">Rápido</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Top 100 puertos. ~30 segundos.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 p-3 rounded-lg bg-black/20 border border-white/5">
+                            <i class="fas fa-search text-emerald-400 mt-0.5 text-sm"></i>
+                            <div>
+                                <p class="text-xs font-bold text-white">Servicios</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Fingerprinting de versiones. ~2 min.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 p-3 rounded-lg bg-black/20 border border-white/5">
+                            <i class="fas fa-bug text-amber-400 mt-0.5 text-sm"></i>
+                            <div>
+                                <p class="text-xs font-bold text-white">Vulnerabilidades</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Scripts NSE de detección. ~5 min.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="exportToPDF()" id="btn-pdf" disabled class="w-full glass-panel p-5 flex items-center justify-center gap-3 text-slate-500 opacity-50 cursor-not-allowed transition-all border-dashed border-2 border-slate-700/50">
+                    <i class="fas fa-file-pdf text-xl"></i>
+                    <span class="font-bold tracking-widest uppercase text-sm">Exportar Reporte PDF</span>
+                </button>
+            </div>
+
+            <!-- CONSOLA PRINCIPAL -->
+            <div class="lg:col-span-8 flex flex-col" style="min-height: 600px;">
+                <div id="output-wrapper" class="glass-panel flex-grow overflow-hidden flex flex-col border-slate-800" style="min-height: 600px;">
+                    <!-- TERMINAL HEADER -->
+                    <div class="bg-slate-900/90 px-6 py-4 border-b border-white/5 flex justify-between items-center flex-shrink-0">
+                        <div class="flex items-center gap-3">
+                            <div class="flex gap-1.5">
+                                <div class="w-3 h-3 rounded-full bg-red-500/50 hover:bg-red-500 transition-colors cursor-pointer"></div>
+                                <div class="w-3 h-3 rounded-full bg-amber-500/50 hover:bg-amber-500 transition-colors cursor-pointer"></div>
+                                <div class="w-3 h-3 rounded-full bg-emerald-500/50 hover:bg-emerald-500 transition-colors cursor-pointer"></div>
+                            </div>
+                            <span class="text-[10px] mono-tech text-slate-400 font-bold ml-4 tracking-widest">G12_AUDIT_CONSOLE_v1.0</span>
+                        </div>
+                        <div id="status-tag" class="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-md font-bold uppercase mono-tech border border-white/5">Ready</div>
+                    </div>
+
+                    <div id="capture-area" class="flex-grow p-8 terminal-bg overflow-y-auto text-sm leading-relaxed">
+                        <!-- PDF HEADER (hidden until export) -->
+                        <div id="audit-report-header" class="hidden mb-8 pb-4 border-b border-sky-900/50">
+                            <h1 style="color: #0ea5e9; font-size: 24px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">INFORME DE AUDITORÍA PERIMETRAL</h1>
+                            <p style="color: #64748b; font-size: 12px; margin-top: 4px;">Generado por: Plataforma CyberPYME G12 SOC</p>
+                            <p style="color: #64748b; font-size: 12px;">Fecha: <span id="pdf-date"></span></p>
+                        </div>
+                        
+                        <div id="console-output" class="mono-tech text-slate-400 whitespace-pre-wrap">
+<span class="text-sky-500">╔══════════════════════════════════════════╗</span>
+<span class="text-sky-500">║     CYBERPYME SOC — SCANNER MODULE 01    ║</span>
+<span class="text-sky-500">╚══════════════════════════════════════════╝</span>
+
+<span class="text-slate-500">[!] Sistema G12 en espera de instrucciones...</span>
+<span class="text-slate-500">[!] Ingrese un objetivo y pulse "Lanzar Auditoría".</span>
+<span class="text-slate-600">──────────────────────────────────────────</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+    </main>
 
-        <!-- Firewall helper (actúa sobre el target real) -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
-          <h3 class="font-bold text-white text-sm mb-1">
-            <i class="fas fa-shield-halved text-amber-500 mr-2"></i> Asistente de Firewall UFW
-          </h3>
-          <p class="text-xs text-slate-400 mb-4">Aplica reglas UFW directamente en el servidor objetivo vía SSH.</p>
-
-          <div class="space-y-3">
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs text-slate-500 mb-1 uppercase">Usuario SSH</label>
-                <input id="fw-user" type="text" value="root" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500">
-              </div>
-              <div>
-                <label class="block text-xs text-slate-500 mb-1 uppercase">Contraseña</label>
-                <input id="fw-pass" type="password" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500">
-              </div>
+    <!-- FOOTER -->
+    <footer class="border-t border-slate-800/80 bg-slate-900/50 backdrop-blur-md mt-12">
+        <div class="max-w-7xl mx-auto px-6 py-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                <div class="flex items-center gap-4">
+                    <span class="text-sky-500 font-extrabold">CYBER<span class="text-white">PYME</span></span>
+                    <span class="text-slate-700">|</span>
+                    <p>&copy; 2026 G12 SOC Platform. All Rights Reserved.</p>
+                </div>
+                <div class="flex gap-4 text-lg">
+                    <i class="fab fa-linux hover:text-white transition-colors cursor-pointer"></i>
+                    <i class="fab fa-docker hover:text-sky-500 transition-colors cursor-pointer"></i>
+                    <i class="fab fa-php hover:text-indigo-400 transition-colors cursor-pointer"></i>
+                </div>
             </div>
-
-            <div class="bg-slate-950 rounded p-3 text-xs font-mono text-amber-300 space-y-1">
-              <div>ufw default deny incoming</div>
-              <div>ufw allow 80/tcp   <span class="text-slate-500"># HTTP</span></div>
-              <div>ufw allow 443/tcp  <span class="text-slate-500"># HTTPS</span></div>
-              <div>ufw deny 3306/tcp  <span class="text-slate-500"># Aísla MySQL</span></div>
-              <div>ufw --force enable</div>
-            </div>
-
-            <button onclick="applyFirewall()"
-                    class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded-lg text-sm shadow-lg transition-all flex justify-center items-center gap-2">
-              <i class="fas fa-bolt"></i> Aplicar en <span id="fw-target-label" class="font-mono"><?= $ip ?: '—' ?></span>
-            </button>
-
-            <div id="fw-result" class="hidden text-xs font-mono bg-black rounded p-3 text-emerald-400 whitespace-pre-wrap max-h-32 overflow-y-auto"></div>
-          </div>
         </div>
+    </footer>
 
-      </div><!-- /LEFT -->
+    <script>
+        let isRunning = false;
 
-      <!-- RIGHT COLUMN -->
-      <div class="space-y-6">
+        // THEME
+        function setupTheme() {
+            const savedTheme = localStorage.getItem('soc_theme') || 'dark';
+            const body = document.body;
+            const icon = document.getElementById('theme-icon');
+            if (savedTheme === 'light') {
+                body.classList.replace('dark-mode', 'light-mode');
+                icon.classList.replace('fa-sun', 'fa-moon');
+                icon.classList.replace('text-amber-400', 'text-indigo-600');
+            }
+        }
 
-        <!-- Forensics via SSH -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg p-4">
-          <h3 class="font-bold text-white text-lg mb-1">
-            <i class="fas fa-microscope text-purple-500 mr-2"></i> Análisis Forense en Vivo
-          </h3>
-          <p class="text-xs text-slate-400 mb-4">Inspecciona conexiones, usuarios activos e intentos de intrusión vía SSH.</p>
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('theme-icon');
+            const isDark = body.classList.contains('dark-mode');
+            if (isDark) {
+                body.classList.replace('dark-mode', 'light-mode');
+                icon.classList.replace('fa-sun', 'fa-moon');
+                icon.classList.replace('text-amber-400', 'text-indigo-600');
+                localStorage.setItem('soc_theme', 'light');
+            } else {
+                body.classList.replace('light-mode', 'dark-mode');
+                icon.classList.replace('fa-moon', 'fa-sun');
+                icon.classList.replace('text-indigo-600', 'text-amber-400');
+                localStorage.setItem('soc_theme', 'dark');
+            }
+        }
 
-          <div id="forensics-form" class="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
-            <div id="forensics-error" class="hidden text-xs text-red-400 bg-red-500/10 p-2 rounded border border-red-500/20"></div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs text-slate-500 mb-1 uppercase">Usuario Linux</label>
-                <input id="f-user" type="text" value="root" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none">
-              </div>
-              <div>
-                <label class="block text-xs text-slate-500 mb-1 uppercase">Contraseña</label>
-                <input id="f-pass" type="password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none">
-              </div>
-            </div>
-            <button onclick="runForensics()"
-                    class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-sm shadow-lg shadow-purple-500/20 transition-all flex justify-center items-center gap-2">
-              <i class="fas fa-key"></i> Inspección Profunda
-            </button>
-          </div>
+        function changeLanguage(lang, flag, code) {
+            document.getElementById('current-lang-flag').innerText = flag;
+            document.getElementById('current-lang-text').innerText = code;
+            const selectField = document.querySelector(".goog-te-combo");
+            if (selectField) { selectField.value = lang; selectField.dispatchEvent(new Event('change')); }
+        }
 
-          <div id="forensics-results" class="hidden space-y-3 mt-3">
-            <div>
-              <p class="text-xs text-red-400 font-bold uppercase tracking-wider mb-1">Ataques recientes (auth.log)</p>
-              <div id="f-ataques" class="bg-black p-3 rounded border border-red-500/30 text-[10px] font-mono text-red-400 h-20 overflow-y-auto whitespace-pre-wrap"></div>
-            </div>
-            <div>
-              <p class="text-xs text-sky-400 font-bold uppercase tracking-wider mb-1">Conexiones establecidas</p>
-              <div id="f-conexiones" class="bg-black p-3 rounded border border-sky-500/30 text-[10px] font-mono text-sky-300 h-20 overflow-y-auto whitespace-pre-wrap"></div>
-            </div>
-            <div>
-              <p class="text-xs text-emerald-400 font-bold uppercase tracking-wider mb-1">Usuarios autenticados</p>
-              <div id="f-usuarios" class="bg-black p-3 rounded border border-emerald-500/30 text-[10px] font-mono text-emerald-300 h-16 overflow-y-auto whitespace-pre-wrap"></div>
-            </div>
-            <button onclick="resetForensics()" class="text-xs text-slate-500 hover:text-white transition-all">
-              <i class="fas fa-rotate-left mr-1"></i> Nueva conexión
-            </button>
-          </div>
-        </div>
+        // AUDIT RUNNER
+        async function runAudit() {
+            if (isRunning) return;
+            const target = document.getElementById('target').value.trim();
+            const type = document.getElementById('type').value;
+            const btn = document.getElementById('btn-run');
+            const output = document.getElementById('console-output');
+            const status = document.getElementById('status-tag');
+            const panel = document.getElementById('output-wrapper');
 
-        <!-- SSH Terminal -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden">
-          <div class="bg-slate-800 px-4 py-3 flex justify-between items-center">
-            <h3 class="font-bold text-white text-sm">
-              <i class="fas fa-terminal text-green-400 mr-2"></i> Terminal SSH Interactiva
-            </h3>
-            <div class="flex items-center gap-2">
-              <span id="term-status" class="text-xs text-slate-500">Desconectado</span>
-              <button id="term-disconnect-btn" onclick="disconnectTerminal()" class="hidden text-xs bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded transition-all">Desconectar</button>
-            </div>
-          </div>
+            if (!target) { alert("⚠️ Error: Especifique un objetivo (IP o dominio)."); return; }
 
-          <!-- Login form -->
-          <div id="term-login" class="p-4 bg-slate-950 space-y-3">
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs text-slate-500 mb-1 uppercase">Usuario</label>
-                <input id="t-user" type="text" value="root" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-green-500">
-              </div>
-              <div>
-                <label class="block text-xs text-slate-500 mb-1 uppercase">Contraseña</label>
-                <input id="t-pass" type="password" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-green-500">
-              </div>
-            </div>
-            <button onclick="connectTerminal()"
-                    class="w-full bg-green-700 hover:bg-green-600 text-white font-bold py-2 rounded-lg text-sm flex justify-center items-center gap-2 transition-all">
-              <i class="fas fa-plug"></i> Conectar Terminal
-            </button>
-            <div id="term-error" class="hidden text-xs text-red-400 bg-red-500/10 p-2 rounded border border-red-500/20"></div>
-          </div>
+            isRunning = true;
+            btn.innerHTML = '<i class="fas fa-sync fa-spin relative z-10"></i> <span class="relative z-10 tracking-widest uppercase text-sm">Ejecutando...</span>';
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+            status.innerText = "Scanning...";
+            status.className = "text-[10px] bg-sky-500/20 text-sky-400 px-3 py-1 rounded-md font-bold uppercase mono-tech border border-sky-500/30";
+            panel.classList.add('scanning-active');
+            
+            output.innerHTML = `<span class="text-sky-500 font-bold">[+] Iniciando auditoría en: <span class="text-white">${target}</span></span>\n`;
+            output.innerHTML += `<span class="text-slate-500">[+] Perfil seleccionado: ${type.toUpperCase()}</span>\n`;
+            output.innerHTML += `<span class="text-slate-500">[+] Cargando módulos NMAP desde servidor...</span>\n`;
+            output.innerHTML += `<span class="text-slate-500">[*] Esperando respuesta del motor PHP...\n\n</span>`;
 
-          <!-- Active terminal (hidden until connected) -->
-          <div id="term-active" class="hidden">
-            <div id="ssh-terminal"></div>
-            <div id="ssh-input-line">
-              <span id="ssh-prompt">$</span>
-              <input id="ssh-cmd" type="text" autocomplete="off" spellcheck="false"
-                     placeholder="escribe un comando y pulsa Enter…"
-                     onkeydown="handleTermKey(event)">
-            </div>
-          </div>
-        </div>
+            try {
+                const response = await fetch('api_nmap.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target: target, type: type })
+                });
 
-      </div><!-- /RIGHT -->
-    </div>
-  </div><!-- /results-area -->
-</main>
+                if (!response.ok) throw new Error(`Servidor respondió con código ${response.status}`);
 
-<script>
-/* ====================================================
-   ESTADO GLOBAL
-==================================================== */
-let currentIp = <?= json_encode($ip) ?>;
-let sshSessionId = null;
-let cmdHistory = [];
-let histIdx = -1;
+                const data = await response.json();
 
-/* ====================================================
-   1. ESCANEO NMAP ASÍNCRONO
-==================================================== */
-function startScan() {
-  const ip = document.getElementById('scan-ip').value.trim();
-  if (!ip) return alert('Introduce una IP o dominio.');
-  currentIp = ip;
+                if (data.status === "error") {
+                    output.innerHTML += `<span class="text-red-400 font-bold">[ERROR] ${data.message}</span>\n`;
+                    if (data.result) output.innerHTML += `<span class="text-slate-600">${data.result}</span>`;
+                    status.innerText = "Error";
+                    status.className = "text-[10px] bg-red-500/20 text-red-400 px-3 py-1 rounded-md font-bold uppercase mono-tech border border-red-500/30";
+                } else {
+                    output.innerHTML += `<span class="text-emerald-400 font-bold">╔══ RESULTADOS ENCONTRADOS ══╗</span>\n\n`;
+                    output.innerHTML += `<span class="text-slate-300">${data.result}</span>`;
+                    
+                    const btnPdf = document.getElementById('btn-pdf');
+                    btnPdf.disabled = false;
+                    btnPdf.className = "w-full glass-panel p-5 flex items-center justify-center gap-3 text-emerald-400 transition-all border-2 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer";
+                    
+                    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#0ea5e9', '#10b981'] });
 
-  // Update URL without reload
-  history.pushState({}, '', `scanner.php?ip=${encodeURIComponent(ip)}`);
+                    status.innerText = "Completed";
+                    status.className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-md font-bold uppercase mono-tech border border-emerald-500/30";
+                }
+            } catch (err) {
+                output.innerHTML += `<span class="text-red-400">[ERROR CRÍTICO] Fallo de conexión: ${err.message}</span>`;
+                status.innerText = "Error";
+                status.className = "text-[10px] bg-red-500/20 text-red-400 px-3 py-1 rounded-md font-bold uppercase mono-tech border border-red-500/30";
+            }
 
-  // Show results area
-  document.getElementById('results-area').classList.remove('hidden');
-  document.getElementById('fw-target-label').textContent = ip;
+            isRunning = false;
+            btn.innerHTML = '<i class="fas fa-bolt relative z-10"></i> <span class="relative z-10 tracking-widest uppercase text-sm">Lanzar Auditoría</span>';
+            btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            panel.classList.remove('scanning-active');
+        }
 
-  // Reset panels
-  document.getElementById('nmap-output').textContent = '⏳ Iniciando escaneo nmap -F -sV…';
-  document.getElementById('nmap-status').innerHTML = '<span class="spin">⟳</span> Escaneando…';
-  document.getElementById('recomendaciones').innerHTML = '<p class="text-slate-500 text-xs">Esperando resultados…</p>';
+        function exportToPDF() {
+            const target = document.getElementById('target').value || 'auditoria';
+            const element = document.getElementById('capture-area');
+            const header = document.getElementById('audit-report-header');
+            const dateSpan = document.getElementById('pdf-date');
+            
+            dateSpan.innerText = new Date().toLocaleString('es-ES');
+            header.classList.remove('hidden');
 
-  fetch(`api/scan_async.php?ip=${encodeURIComponent(ip)}`)
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById('nmap-output').textContent = data.nmap || 'Sin resultados.';
-      document.getElementById('nmap-status').textContent = '✓ Completado';
-      renderRecomendaciones(data.recomendaciones || []);
-    })
-    .catch(() => {
-      document.getElementById('nmap-output').textContent = 'Error al contactar el servidor de escaneo.';
-      document.getElementById('nmap-status').textContent = '✗ Error';
-    });
-}
+            const opt = {
+                margin: 10,
+                filename: `G12_Report_${target}_${Date.now()}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, backgroundColor: '#010409' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
 
-function renderRecomendaciones(recs) {
-  const colorMap = { CRÍTICO: 'badge-critico', ALTO: 'badge-alto', MEDIO: 'badge-medio', BAJO: 'badge-bajo' };
-  const container = document.getElementById('recomendaciones');
-  if (!recs.length) {
-    container.innerHTML = '<p class="text-slate-500 text-xs">Sin recomendaciones.</p>';
-    return;
-  }
-  container.innerHTML = recs.map(r => `
-    <div class="bg-slate-950 p-3 rounded border border-slate-800 flex items-start gap-3">
-      <span class="text-xs font-bold px-2 py-1 rounded ${colorMap[r.riesgo] || 'badge-bajo'}">${r.riesgo}</span>
-      <p class="text-sm text-slate-300">${r.msg}</p>
-    </div>`).join('');
-}
+            html2pdf().set(opt).from(element).save().then(() => {
+                header.classList.add('hidden');
+            });
+        }
 
-// Auto-scan si hay IP en URL
-if (currentIp) startScan();
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'es', includedLanguages: 'es,en,fr,zh-CN',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE, autoDisplay: false
+            }, 'google_translate_element');
+        }
 
-/* ====================================================
-   2. ANÁLISIS FORENSE
-==================================================== */
-function runForensics() {
-  const user = document.getElementById('f-user').value.trim();
-  const pass = document.getElementById('f-pass').value;
-  const errEl = document.getElementById('forensics-error');
-  errEl.classList.add('hidden');
-
-  if (!user || !pass) { errEl.textContent = 'Completa usuario y contraseña.'; errEl.classList.remove('hidden'); return; }
-
-  const btn = event.target;
-  btn.innerHTML = '<span class="spin">⟳</span> Conectando…';
-  btn.disabled = true;
-
-  fetch('api/forensics.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ip: currentIp, user, pass })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === 'error') {
-      errEl.textContent = data.message;
-      errEl.classList.remove('hidden');
-      btn.innerHTML = '<i class="fas fa-key"></i> Inspección Profunda';
-      btn.disabled = false;
-      return;
-    }
-    document.getElementById('f-ataques').textContent    = data.ataques    || 'Sin ataques detectados.';
-    document.getElementById('f-conexiones').textContent = data.conexiones || 'Sin conexiones.';
-    document.getElementById('f-usuarios').textContent   = data.usuarios   || 'Sin usuarios.';
-    document.getElementById('forensics-form').classList.add('hidden');
-    document.getElementById('forensics-results').classList.remove('hidden');
-  })
-  .catch(() => {
-    errEl.textContent = 'Error de red.';
-    errEl.classList.remove('hidden');
-    btn.innerHTML = '<i class="fas fa-key"></i> Inspección Profunda';
-    btn.disabled = false;
-  });
-}
-
-function resetForensics() {
-  document.getElementById('forensics-form').classList.remove('hidden');
-  document.getElementById('forensics-results').classList.add('hidden');
-}
-
-/* ====================================================
-   3. FIREWALL
-==================================================== */
-function applyFirewall() {
-  const user = document.getElementById('fw-user').value.trim();
-  const pass = document.getElementById('fw-pass').value;
-  const resultEl = document.getElementById('fw-result');
-
-  if (!user || !pass) { alert('Introduce credenciales SSH para el servidor objetivo.'); return; }
-  if (!currentIp)     { alert('Primero introduce y escanea una IP.'); return; }
-
-  resultEl.textContent = '⏳ Aplicando reglas…';
-  resultEl.classList.remove('hidden');
-
-  fetch('firewall_exec.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ host: currentIp, user, pass })
-  })
-  .then(r => r.json())
-  .then(data => {
-    resultEl.textContent = (data.status === 'success' ? '✓ ' : '✗ ') + data.message + (data.output ? '\n\n' + data.output : '');
-    resultEl.style.color = data.status === 'success' ? '#4ade80' : '#f87171';
-  })
-  .catch(() => { resultEl.textContent = '✗ Error de red.'; resultEl.style.color = '#f87171'; });
-}
-
-/* ====================================================
-   4. TERMINAL SSH INTERACTIVA
-==================================================== */
-function termWrite(text, cls = '') {
-  const term = document.getElementById('ssh-terminal');
-  const line = document.createElement('span');
-  if (cls) line.className = cls;
-  line.textContent = text;
-  term.appendChild(line);
-  term.scrollTop = term.scrollHeight;
-}
-
-function connectTerminal() {
-  const user = document.getElementById('t-user').value.trim();
-  const pass = document.getElementById('t-pass').value;
-  const errEl = document.getElementById('term-error');
-  errEl.classList.add('hidden');
-
-  if (!user || !pass) { errEl.textContent = 'Completa usuario y contraseña.'; errEl.classList.remove('hidden'); return; }
-  if (!currentIp)     { errEl.textContent = 'Escanea primero una IP objetivo.'; errEl.classList.remove('hidden'); return; }
-
-  document.getElementById('term-status').textContent = '⟳ Conectando…';
-
-  fetch('api/ssh_session.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'connect', ip: currentIp, user, pass })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status !== 'ok') {
-      errEl.textContent = data.message;
-      errEl.classList.remove('hidden');
-      document.getElementById('term-status').textContent = 'Error';
-      return;
-    }
-    sshSessionId = data.session_id;
-    document.getElementById('term-login').classList.add('hidden');
-    document.getElementById('term-active').classList.remove('hidden');
-    document.getElementById('term-disconnect-btn').classList.remove('hidden');
-    document.getElementById('term-status').innerHTML = `<span class="text-green-400">● Conectado</span> como <b>${user}@${currentIp}</b>`;
-    document.getElementById('ssh-prompt').textContent = `${user}@${currentIp}:~$`;
-    document.getElementById('ssh-terminal').textContent = '';
-    termWrite(`Conectado a ${currentIp}\n`, 'text-green-400');
-    document.getElementById('ssh-cmd').focus();
-  })
-  .catch(() => {
-    errEl.textContent = 'Error de red al intentar conectar.';
-    errEl.classList.remove('hidden');
-    document.getElementById('term-status').textContent = 'Error';
-  });
-}
-
-function handleTermKey(e) {
-  const input = document.getElementById('ssh-cmd');
-  if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    if (histIdx < cmdHistory.length - 1) { histIdx++; input.value = cmdHistory[cmdHistory.length - 1 - histIdx]; }
-    return;
-  }
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    if (histIdx > 0) { histIdx--; input.value = cmdHistory[cmdHistory.length - 1 - histIdx]; }
-    else { histIdx = -1; input.value = ''; }
-    return;
-  }
-  if (e.key !== 'Enter') return;
-
-  const cmd = input.value.trim();
-  input.value = '';
-  histIdx = -1;
-  if (!cmd) return;
-
-  cmdHistory.push(cmd);
-  const prompt = document.getElementById('ssh-prompt').textContent;
-  termWrite(`\n${prompt} ${cmd}\n`, 'text-slate-300');
-
-  if (cmd === 'clear') { document.getElementById('ssh-terminal').textContent = ''; return; }
-  if (cmd === 'exit')  { disconnectTerminal(); return; }
-
-  fetch('api/ssh_session.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'exec', session_id: sshSessionId, cmd })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === 'ok') {
-      termWrite(data.output || '', 'text-emerald-300');
-    } else {
-      termWrite(data.message + '\n', 'text-red-400');
-    }
-  })
-  .catch(() => termWrite('Error de comunicación con el servidor.\n', 'text-red-400'));
-}
-
-function disconnectTerminal() {
-  if (sshSessionId) {
-    fetch('api/ssh_session.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'disconnect', session_id: sshSessionId })
-    }).catch(() => {});
-    sshSessionId = null;
-  }
-  document.getElementById('term-active').classList.add('hidden');
-  document.getElementById('term-login').classList.remove('hidden');
-  document.getElementById('term-disconnect-btn').classList.add('hidden');
-  document.getElementById('term-status').textContent = 'Desconectado';
-  document.getElementById('t-pass').value = '';
-}
-</script>
-
-<?php include 'views/footer.php'; ?>
+        document.addEventListener('DOMContentLoaded', setupTheme);
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+</body>
+</html>
