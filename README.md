@@ -2029,6 +2029,100 @@ sudo apt install dradis faraday
 
 #### 1. Network Reconnaissance
 
+# 🔒 Audit Report - SME Nestlea
+
+**Team:** Joel Muñoz, Alberto Trujillo, Luka Ukleba  
+**Date:** $(date +%Y-%m-%d)  
+**Environment:** IsardVDI → AWS (Bash scripts)
+
+## 📋 Scope
+
+- **Services:** Nginx, MariaDB, OpenLDAP, Docker, PHP API
+- **Tools:** Kali Linux (Nmap, SQLmap, Trivy, Shodan), Wazuh SIEM
+- **Excluded:** DoS attacks, social engineering
+
+## 📊 Findings
+
+
+| ID | Service | Finding | CVSS | Evidence | Mitigation |
+|----|---------|---------|------|----------|------------|
+| D01| Docker  | [pending] | - | trivy_*.txt | Update image |
+| W01| Nginx   | [pending] | - | gobuster_*.txt | server_tokens off |
+
+## 🛡️ Wazuh Validation
+
+- [ ] SSH brute-force alerts
+- [ ] Port scanning detection
+- [ ] FIM (File Integrity Monitoring) in `/etc/` and `/var/www/`
+
+## 📎 Evidences
+
+- `01_recon/` → Active hosts
+- `02_scan/` → Nmap, Trivy, Shodan
+- `03_exploits/` → Metasploit, SQLmap
+- `05_wazuh_tests/` → Validated alerts
+
+---
+
+## 🐳 Docker Audit - Proof of Concept (PoC)
+
+**Analyzed Image:** `nginx:latest` (Debian 13.4)  
+**Tool:** Trivy v0.66.0  
+**Date:** $(date +%Y-%m-%d)
+
+### Results
+
+
+| Severity | Count | Example CVE |
+|-----------|----------|----------------|
+| 🔴 CRITICAL | 0 | - |
+| 🟠 HIGH | 15 | CVE-2026-33164 (libde265-0) |
+| 🟡 MEDIUM | [pending] | - |
+
+### Key Findings
+
+1. **libexpat1 (CVE-2026-25210)**: XML parser vulnerable to integer overflow.
+2. **libgcrypt20 (CVE-2026-41989)**: Potential DoS in ECDH operations.
+3. **libde265-0 (CVE-2026-33164)**: Video codec with potential information leak.
+
+### Proposed Mitigation
+
+- Update base image to `nginx:alpine` or `nginx:slim`.
+- Implement automated scanning in the CI/CD pipeline using Trivy.
+- Review and patch affected libraries before production deployment.
+
+### Evidence
+- Full Report: `02_scan/docker/trivy_nginx_public.txt`
+
+---
+
+## 🔍 Local Audit - Proof of Concept (PoC)
+
+### Nginx (localhost:80) - Nikto Scan
+
+
+| Finding | Severity | Mitigation |
+|----------|-----------|------------|
+| X-Frame-Options missing | Medium | Add `add_header X-Frame-Options "SAMEORIGIN";` |
+| X-Content-Type-Options missing | Medium | Add `add_header X-Content-Type-Options "nosniff";` |
+| server_tokens | ✅ Secure | Already configured as `off` |
+
+### MariaDB (localhost:3306) - Hardening Check
+
+
+| Configuration | Current Status | Recommendation |
+|--------------|---------------|---------------|
+| require_secure_transport | ❌ OFF | Enable to force TLS connections |
+| secure_file_priv | ⚠️ Empty | Set to: `/var/lib/mysql-files/` |
+| Remote Users | ✅ None | Maintain localhost-only policy |
+
+### Evidences
+
+- Nikto: `04_web_tests/nginx/nikto_local.txt`
+- Nginx Config: `/etc/nginx/nginx.conf`
+- MariaDB Variables: Output of `SHOW VARIABLES LIKE '%secure%';`
+
+
 **Port Scanning**:
 ```bash
 nmap -sS -sV -O -p- --script=vuln cyberaudit-staging.local
