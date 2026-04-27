@@ -1,304 +1,567 @@
-# 🤖 Manual: Cómo Crear un Chatbot con Chatbase para tu Servicio de Seguridad
+# Cómo poner un chatbot con Qwen en tu página web 
 
-> **Nivel:** Principiante · **Tiempo estimado:** 30–45 minutos · **Coste:** Gratuito (plan Free)
-
----
-
-## ¿Qué es Chatbase?
-
-Chatbase es una plataforma no-code que te permite crear chatbots de IA personalizados entrenados con **tu propia documentación**: PDFs, páginas web, texto personalizado y preguntas frecuentes. El chatbot se integra en tu web con una sola línea de código y todo el procesamiento ocurre en los servidores de Chatbase, sin afectar al rendimiento de tu página.
 
 ---
 
-## Requisitos previos
+## Antes de empezar — ¿Qué vamos a hacer exactamente?
 
-- Una cuenta de correo electrónico (o cuenta de Google)
-- Los documentos de tu servicio de seguridad en formato **PDF, DOCX o TXT** (guías, FAQs, pasos del proceso, etc.)
-- Acceso al HTML de tu página web para pegar el script de embed
 
----
+El chatbot va a:
+- Aparecer como una burbuja en la esquina de tu web 💬
+- Responder preguntas sobre tus servicios de seguridad
+- Usar **solo** la información que tú le des (nada inventado)
 
-## Paso 1 — Crear una cuenta en Chatbase
+Esto es lo que vamos a montar:
 
-1. Visita [https://www.chatbase.co](https://www.chatbase.co)
-2. Haz clic en **"Sign Up"** (esquina superior derecha)
-3. Elige registrarte con tu cuenta de **Google** o con email y contraseña
-4. Confirma tu correo si es necesario y entra al **Dashboard**
-
-> 💡 El plan gratuito incluye 1 chatbot, 20 mensajes/día y hasta 400.000 caracteres de base de conocimiento. Suficiente para empezar.
-
----
-
-## Paso 2 — Crear un nuevo chatbot
-
-1. En el Dashboard, haz clic en el botón **"New Chatbot"**
-2. Serás redirigido a la página de **fuentes de datos** (el "cerebro" del bot)
-
-Verás cuatro pestañas para añadir información:
-
-| Pestaña | Descripción | Recomendado para |
-|---------|-------------|-----------------|
-| **Files** | Sube PDFs, DOCX, TXT | Guías del servicio, manuales |
-| **Text** | Pega texto directamente | Descripciones cortas, políticas |
-| **Website** | Introduce una URL para que Chatbase la rastree | Tu web o página de FAQs |
-| **Q&A** | Define pares pregunta-respuesta | Preguntas frecuentes específicas |
-
----
-
-## Paso 3 — Añadir la base de conocimiento
-
-### Opción A: Subir archivos (recomendado)
-
-1. Haz clic en la pestaña **"Files"**
-2. Arrastra o selecciona tus documentos (PDF, DOCX, TXT)
-   - Guías de uso del servicio de seguridad
-   - Pasos del proceso de instalación/activación
-   - Preguntas frecuentes
-3. Espera a que los archivos se procesen (barra de progreso)
-
-### Opción B: Añadir tu web
-
-1. Haz clic en la pestaña **"Website"**
-2. Introduce la URL de tu página de servicios o FAQs
-3. Haz clic en **"Fetch links"** para que Chatbase rastree el contenido
-4. Selecciona las páginas que quieres incluir y haz clic en **"Add links"**
-
-### Opción C: Añadir Q&A manualmente
-
-1. Haz clic en la pestaña **"Q&A"**
-2. Haz clic en **"Add Q&A"**
-3. Escribe la pregunta exacta que podría hacer un usuario y su respuesta ideal
-4. Repite para cada par pregunta-respuesta
-
-**Ejemplo para un servicio de seguridad:**
 ```
-Pregunta: ¿Cómo activo la autenticación de dos factores?
-Respuesta: Para activar 2FA, ve a tu panel de control → Configuración → 
-           Seguridad → Autenticación en dos pasos y sigue los 3 pasos indicados.
+El usuario escribe una pregunta en tu web
+           ↓
+El widget (un trocito de JavaScript) la manda a tu servidor
+           ↓
+Tu servidor le pregunta a Qwen (la IA de Alibaba)
+           ↓
+Qwen responde usando TUS documentos
+           ↓
+La respuesta aparece en el chat de tu web
 ```
 
 ---
 
-## Paso 4 — Crear el chatbot
+## Lo que necesitas tener instalado
 
-1. Una vez añadidas las fuentes, haz clic en **"Create Chatbot"** (botón azul, esquina superior derecha)
-2. Chatbase procesará toda la información y creará el bot (puede tardar 1–2 minutos)
-3. Aparecerá una **vista previa en vivo** donde ya puedes hacerle preguntas de prueba
+Antes de empezar, comprueba que tienes esto:
+
+- **Node.js** → Escribe en la terminal: `node --version`  
+  Si no te sale un número, descárgalo de https://nodejs.org (el de "LTS")
+- **Un editor de código** → Visual Studio Code vale perfecto
+- **Tu documentación** → Los PDFs o Word con info de tus servicios
 
 ---
 
-## Paso 5 — Configurar el comportamiento (Settings)
+## PARTE 1 — Crear la cuenta en Alibaba y conseguir la clave API
 
-Haz clic en la pestaña **"Settings"** en la parte superior.
+### Paso 1.1 — Registrarse
 
-### 5.1 Información general
+1. Entra en: **https://modelstudio.console.alibabacloud.com**
+2. Haz clic en **"Login"** y luego en **"Sign Up"**
+3. Pon tu email, una contraseña y ya está
+4. Cuando te pida región, elige **Singapore** (es la más rápida desde España)
 
-- **Name:** Dale un nombre a tu chatbot (ej. *"Asistente de Seguridad"*)
-- **Default message:** El primer mensaje que verá el usuario (ej. *"¡Hola! Soy el asistente de [Tu Empresa]. ¿En qué puedo ayudarte hoy?"*)
+> 🎁 Al registrarte te dan **1 millón de tokens gratis**. Un token es como una palabra. Con 1 millón de tokens puedes tener miles y miles de conversaciones. Gratis. Sin tarjeta.
 
-### 5.2 Modelo de IA (Model)
+### Paso 1.2 — Conseguir la clave API
 
-En el menú lateral izquierdo, haz clic en **"Model"**:
+La clave API es como una contraseña secreta que permite que tu servidor use la IA de Alibaba.
 
-| Campo | Recomendación |
-|-------|---------------|
-| **Model** | `GPT-3.5-turbo` (más rápido y económico) |
-| **Temperature** | `0` – `0.3` (respuestas más precisas y consistentes) |
-| **Instructions** | Escribe aquí el comportamiento del bot |
+1. Una vez dentro, haz clic en tu foto de perfil (arriba a la derecha)
+2. Selecciona **"API Keys"**
+3. Haz clic en **"Create API Key"**
+4. Ponle el nombre que quieras, por ejemplo: `mi-chatbot`
+5. Copia la clave. Tiene este aspecto: `sk-xxxxxxxxxxxxxxxxxxxxxxxx`
 
-**Ejemplo de instrucciones para un servicio de seguridad:**
+> ⚠️ **MUY IMPORTANTE:** Guarda esa clave en el bloc de notas ahora mismo. Solo se muestra una vez. Si la pierdes, tendrás que crear una nueva.
+
+---
+
+## PARTE 2 — Preparar tus documentos
+
+El chatbot solo sabe lo que tú le enseñas. Si no le das información, no puede responder.
+
+### Paso 2.1 — Convertir tus documentos a texto plano
+
+El servidor lee archivos `.txt`. Si tienes PDFs, conviértelos así:
+
+**En Linux/Mac (terminal):**
+```bash
+# Instalar la herramienta (solo una vez)
+sudo apt install poppler-utils
+
+# Convertir el PDF
+pdftotext mi_documento.pdf mi_documento.txt
 ```
-Eres el asistente virtual de [Nombre de tu empresa], especializado en 
-servicios de ciberseguridad. Tu objetivo es:
 
-1. Explicar de forma clara y sencilla los servicios que ofrecemos
-2. Guiar a los usuarios paso a paso en procesos técnicos
-3. Responder únicamente sobre los servicios de seguridad de nuestra empresa
-4. Si no conoces la respuesta, indica al usuario que contacte con soporte
+**En Windows:** Abre el PDF, selecciona todo el texto (Ctrl+A), cópialo y pégalo en el Bloc de notas. Guárdalo como `.txt`.
 
-Usa un tono profesional pero cercano. Evita tecnicismos innecesarios.
-Responde siempre en el mismo idioma que el usuario.
+### Paso 2.2 — Crear la carpeta con los documentos
+
+Crea una carpeta llamada `mis-documentos` y mete dentro todos los `.txt`. Por ejemplo:
+
+```
+mis-documentos/
+├── que_hacemos.txt
+├── como_contratar.txt
+└── preguntas_frecuentes.txt
 ```
 
-### 5.3 Límite de respuestas
+### Paso 2.3 — Cómo deben estar escritos los documentos
 
-- Activa **"Restrict to trained data"** para que el bot solo responda sobre tus servicios y no invente información
+Cuanto más claro esté el texto, mejor responde el bot. Escríbelos así:
 
----
+```
+SERVICIO DE ANTIVIRUS EMPRESARIAL
 
-## Paso 6 — Personalizar la apariencia
+Qué incluye:
+Nuestro servicio de antivirus protege todos los ordenadores de tu empresa.
+Incluye actualizaciones automáticas y soporte 24 horas.
 
-En **Settings → Chat Interface**:
+Cómo se activa:
+1. Te mandamos un email con el enlace de instalación
+2. Haces doble clic en el archivo descargado
+3. Sigues los 4 pasos del instalador
+4. Listo, en 5 minutos está funcionando
 
-- **Bot name:** Nombre visible en el chat
-- **Bot avatar:** Sube el logo o icono de tu empresa
-- **User message color:** Color de los mensajes del usuario
-- **Bot message color:** Color de las respuestas del bot
-- **Chat bubble color:** Color del botón flotante en tu web
-- **Initial messages:** Mensajes de bienvenida automáticos al abrir el chat
-
-> 🎨 Elige colores que coincidan con la paleta de tu web para una experiencia coherente.
-
----
-
-## Paso 7 — Probar el chatbot
-
-Antes de publicarlo, pruébalo a fondo:
-
-1. Vuelve a la pestaña **"Chatbot"** (vista previa en vivo)
-2. Hazle preguntas reales que podría hacer un cliente:
-   - *"¿Cómo funciona vuestro servicio de monitorización?"*
-   - *"¿Qué pasos debo seguir para instalar el agente?"*
-   - *"¿Qué incluye el plan básico?"*
-3. Si las respuestas son incorrectas o incompletas:
-   - Vuelve a **Sources** y añade más documentación
-   - Ajusta las **instrucciones** en Settings → Model
-   - Añade pares **Q&A** específicos para esas preguntas
+Precio:
+Desde 9,99 euros al mes por ordenador.
+```
 
 ---
 
-## Paso 8 — Publicar y obtener el código de embed
+## PARTE 3 — Crear el servidor (el "cerebro" del chatbot)
 
-1. Ve a la pestaña **"Connect"** (en la barra superior)
-2. Haz clic en **"Embed"**
-3. Cambia el estado a **"Public"** (botón toggle)
-4. Elige el tipo de integración:
+Esto suena intimidante pero no lo es. Vamos a crear una carpeta con 3 archivos.
 
-### Opción A: Widget flotante (recomendado ✅)
+### Paso 3.1 — Crear la carpeta del proyecto
 
-El bot aparece como una burbuja en la esquina inferior derecha de tu web.
+Abre la terminal y escribe esto:
 
-```html
-<script>
-  window.embeddedChatbotConfig = {
-    chatbotId: "TU_CHATBOT_ID",
-    domain: "www.chatbase.co"
+```bash
+# Crear la carpeta
+mkdir chatbot-seguridad
+cd chatbot-seguridad
+
+# Copiar tus documentos aquí dentro
+# (crea la subcarpeta y mete los .txt que preparaste antes)
+mkdir knowledge-base
+```
+
+Ahora mueve tus archivos `.txt` dentro de la carpeta `knowledge-base`.
+
+### Paso 3.2 — Instalar las dependencias
+
+Dentro de la carpeta `chatbot-seguridad`, escribe en la terminal:
+
+```bash
+npm init -y
+npm install express cors openai
+```
+
+Esto descarga las "herramientas" que necesita el servidor. Tardará un minuto.
+
+### Paso 3.3 — Crear el archivo del servidor
+
+Crea un archivo llamado **`server.js`** y pega exactamente esto:
+
+```javascript
+// Cargamos las herramientas que instalamos antes
+const express = require('express');
+const cors = require('cors');
+const OpenAI = require('openai');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Conectamos con Qwen usando nuestra clave API
+const clienteQwen = new OpenAI({
+  apiKey: process.env.QWEN_API_KEY,
+  baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
+});
+
+// Esta función lee todos los .txt de la carpeta knowledge-base
+function leerDocumentos() {
+  const carpeta = './knowledge-base';
+  let todo = '';
+  const archivos = fs.readdirSync(carpeta).filter(f => f.endsWith('.txt'));
+  for (const archivo of archivos) {
+    const contenido = fs.readFileSync(path.join(carpeta, archivo), 'utf8');
+    todo += `\n\n=== ${archivo} ===\n${contenido}`;
   }
-</script>
-<script
-  src="https://www.chatbase.co/embed.min.js"
-  chatbotId="TU_CHATBOT_ID"
-  domain="www.chatbase.co"
-  defer>
-</script>
+  return todo;
+}
+
+// Cargamos los documentos cuando arranca el servidor
+const documentos = leerDocumentos();
+
+// Aquí le decimos al bot cómo debe comportarse
+// CAMBIA ESTO con el nombre real de tu empresa
+const INSTRUCCIONES = `Eres el asistente virtual de [NOMBRE DE TU EMPRESA].
+Tu trabajo es ayudar a los clientes explicando nuestros servicios de seguridad.
+
+REGLAS QUE DEBES SEGUIR:
+- Responde SOLO con información de los documentos que te doy abajo
+- Si no sabes la respuesta, di: "No tengo esa información. Contacta con nosotros en soporte@tuempresa.com"
+- Explica las cosas de forma sencilla, como si hablaras con alguien que no sabe de informática
+- Si hay pasos que seguir, ponlos numerados (1, 2, 3...)
+- Responde en el mismo idioma que el cliente
+- Sé amable y profesional
+
+INFORMACIÓN DE NUESTRA EMPRESA:
+${documentos}`;
+
+// Cuando alguien escribe en el chat, llega aquí
+app.post('/api/chat', async (req, res) => {
+  const { mensaje, historial = [] } = req.body;
+
+  // Comprobamos que el mensaje no está vacío
+  if (!mensaje || mensaje.trim() === '') {
+    return res.status(400).json({ error: 'El mensaje está vacío' });
+  }
+
+  try {
+    // Preparamos la conversación para mandársela a Qwen
+    const conversacion = [
+      { role: 'system', content: INSTRUCCIONES },
+      ...historial.slice(-6), // Solo guardamos las últimas 3 respuestas
+      { role: 'user', content: mensaje }
+    ];
+
+    // Llamamos a la IA de Qwen
+    const respuesta = await clienteQwen.chat.completions.create({
+      model: 'qwen-plus',
+      messages: conversacion,
+      temperature: 0.2, // 0 = muy preciso, 1 = muy creativo. Para soporte, bajo.
+      max_tokens: 800
+    });
+
+    // Devolvemos la respuesta al widget de la web
+    const textoRespuesta = respuesta.choices[0].message.content;
+    res.json({ respuesta: textoRespuesta });
+
+  } catch (error) {
+    console.error('Error al llamar a Qwen:', error.message);
+    res.status(500).json({ error: 'Algo salió mal en el servidor' });
+  }
+});
+
+// Arrancamos el servidor en el puerto 3000
+const PUERTO = process.env.PORT || 3000;
+app.listen(PUERTO, () => {
+  console.log(`✅ Servidor del chatbot funcionando en el puerto ${PUERTO}`);
+});
 ```
 
-### Opción B: iFrame (embebido estático)
+### Paso 3.4 — Crear el archivo con la clave API
 
-El chat se muestra como un componente fijo dentro de una sección de tu web.
+Crea un archivo llamado **`.env`** (sí, empieza con un punto) y pon esto:
 
-```html
-<iframe
-  src="https://www.chatbase.co/chatbot-iframe/TU_CHATBOT_ID"
-  width="100%"
-  style="height: 100%; min-height: 700px"
-  frameborder="0">
-</iframe>
+```
+QWEN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+PORT=3000
 ```
 
-> ⚠️ Reemplaza `TU_CHATBOT_ID` con el ID real que te proporciona Chatbase.
+Cambia `sk-xxxxxxxxxxxxxxxxxxxxxxxx` por tu clave real que copiaste antes.
+
+> ⚠️ **Este archivo es secreto.** Si usas GitHub, crea un archivo `.gitignore` y escribe `.env` dentro para que no se suba nunca.
+
+### Paso 3.5 — Probar que el servidor funciona
+
+Instala una herramienta más para leer el `.env`:
+
+```bash
+npm install dotenv
+```
+
+Ahora arranca el servidor:
+
+```bash
+node -r dotenv/config server.js
+```
+
+Si ves este mensaje, todo va bien:
+```
+✅ Servidor del chatbot funcionando en el puerto 3000
+```
+
+Para probar que responde, abre **otra terminal** y escribe:
+
+```bash
+curl -X POST http://localhost:3000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"mensaje": "Hola, qué servicios ofrecéis?"}'
+```
+
+Deberías ver una respuesta del bot. 🎉
 
 ---
 
-## Paso 9 — Integrar en tu web HTML
+## PARTE 4 — Crear el widget que aparece en tu web
 
-### Para webs en HTML estático
+### Paso 4.1 — Crear el archivo del widget
 
-Pega el script del **widget flotante** justo antes del cierre `</body>` de tu HTML:
+Crea un archivo llamado **`chatbot-widget.js`** (puede estar en la misma carpeta o directamente en tu web):
 
-```html
-  ...contenido de tu web...
+```javascript
+(function () {
 
-  <!-- Chatbase Widget -->
-  <script>
-    window.embeddedChatbotConfig = {
-      chatbotId: "TU_CHATBOT_ID",
-      domain: "www.chatbase.co"
+  // ⬇️ CAMBIA ESTO por la URL donde está tu servidor
+  const URL_SERVIDOR = 'http://localhost:3000/api/chat';
+
+  let historial = [];
+  let abierto = false;
+
+  // Los estilos del chat (colores, tamaños, etc.)
+  const estilos = `
+    #chat-boton {
+      position: fixed; bottom: 20px; right: 20px;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: #1a6b6b; color: white; border: none;
+      font-size: 26px; cursor: pointer; z-index: 9999;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+      transition: transform 0.2s;
     }
-  </script>
-  <script
-    src="https://www.chatbase.co/embed.min.js"
-    chatbotId="TU_CHATBOT_ID"
-    domain="www.chatbase.co"
-    defer>
-  </script>
-</body>
-</html>
+    #chat-boton:hover { transform: scale(1.1); }
+
+    #chat-ventana {
+      display: none; position: fixed;
+      bottom: 90px; right: 20px;
+      width: 340px; height: 500px;
+      background: white; border-radius: 14px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+      flex-direction: column; z-index: 9998;
+      font-family: Arial, sans-serif; overflow: hidden;
+    }
+    #chat-ventana.visible { display: flex; }
+
+    #chat-cabecera {
+      background: #1a6b6b; color: white;
+      padding: 14px 16px; font-weight: bold;
+      font-size: 15px;
+    }
+
+    #chat-mensajes {
+      flex: 1; overflow-y: auto;
+      padding: 14px; display: flex;
+      flex-direction: column; gap: 10px;
+    }
+
+    .mensaje {
+      max-width: 80%; padding: 10px 13px;
+      border-radius: 10px; font-size: 14px; line-height: 1.5;
+    }
+    .mensaje.bot {
+      background: #f0f0f0; color: #222;
+      align-self: flex-start;
+    }
+    .mensaje.usuario {
+      background: #1a6b6b; color: white;
+      align-self: flex-end;
+    }
+    .mensaje.cargando { color: #999; font-style: italic; }
+
+    #chat-pie {
+      display: flex; padding: 10px;
+      border-top: 1px solid #ddd; gap: 8px;
+    }
+    #chat-input {
+      flex: 1; padding: 9px 13px;
+      border: 1px solid #ccc; border-radius: 20px;
+      font-size: 14px; outline: none;
+    }
+    #chat-input:focus { border-color: #1a6b6b; }
+    #chat-enviar {
+      background: #1a6b6b; color: white;
+      border: none; border-radius: 50%;
+      width: 38px; height: 38px;
+      font-size: 16px; cursor: pointer;
+    }
+    #chat-enviar:disabled { background: #ccc; cursor: not-allowed; }
+  `;
+
+  // Metemos los estilos en la página
+  const styleTag = document.createElement('style');
+  styleTag.textContent = estilos;
+  document.head.appendChild(styleTag);
+
+  // Creamos el HTML del widget
+  document.body.insertAdjacentHTML('beforeend', `
+    <button id="chat-boton">💬</button>
+    <div id="chat-ventana">
+      <div id="chat-cabecera">🛡️ Asistente de Seguridad</div>
+      <div id="chat-mensajes">
+        <div class="mensaje bot">
+          ¡Hola! Estoy aquí para explicarte nuestros servicios de seguridad.
+          ¿En qué te puedo ayudar? 😊
+        </div>
+      </div>
+      <div id="chat-pie">
+        <input id="chat-input" type="text" placeholder="Escribe tu pregunta..." />
+        <button id="chat-enviar">➤</button>
+      </div>
+    </div>
+  `);
+
+  const boton = document.getElementById('chat-boton');
+  const ventana = document.getElementById('chat-ventana');
+  const mensajes = document.getElementById('chat-mensajes');
+  const input = document.getElementById('chat-input');
+  const enviar = document.getElementById('chat-enviar');
+
+  // Abrir y cerrar el chat al hacer clic en la burbuja
+  boton.addEventListener('click', () => {
+    abierto = !abierto;
+    ventana.classList.toggle('visible', abierto);
+    boton.textContent = abierto ? '✕' : '💬';
+  });
+
+  // Función para añadir un mensaje a la pantalla
+  function ponerMensaje(texto, quien) {
+    const div = document.createElement('div');
+    div.className = `mensaje ${quien}`;
+    div.textContent = texto;
+    mensajes.appendChild(div);
+    mensajes.scrollTop = mensajes.scrollHeight;
+    return div;
+  }
+
+  // Función principal: enviar mensaje al servidor
+  async function enviarMensaje() {
+    const texto = input.value.trim();
+    if (!texto) return;
+
+    input.value = '';
+    enviar.disabled = true;
+    ponerMensaje(texto, 'usuario');
+
+    const mensajeCargando = ponerMensaje('Escribiendo...', 'bot cargando');
+
+    try {
+      const res = await fetch(URL_SERVIDOR, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensaje: texto, historial: historial })
+      });
+
+      const datos = await res.json();
+      mensajeCargando.remove();
+      ponerMensaje(datos.respuesta, 'bot');
+
+      // Guardamos el historial para que el bot recuerde la conversación
+      historial.push(
+        { role: 'user', content: texto },
+        { role: 'assistant', content: datos.respuesta }
+      );
+
+    } catch (error) {
+      mensajeCargando.remove();
+      ponerMensaje('Ups, algo falló. Inténtalo de nuevo por favor.', 'bot');
+    }
+
+    enviar.disabled = false;
+    input.focus();
+  }
+
+  enviar.addEventListener('click', enviarMensaje);
+  input.addEventListener('keypress', e => {
+    if (e.key === 'Enter') enviarMensaje();
+  });
+
+})();
 ```
 
-### Para WordPress
+---
 
-1. Instala el plugin **"Insert Headers and Footers"** (gratuito)
-2. Ve a **Ajustes → Insert Headers and Footers**
-3. Pega el script en la sección **"Scripts in Footer"**
-4. Guarda los cambios
+## PARTE 5 — Poner el widget en tu web
 
-### Para Webflow
+### Si tu web es HTML normal
 
-1. Ve a **Project Settings → Custom Code**
-2. Pega el script en **"Footer Code"**
-3. Publica el proyecto
+Abre el archivo HTML de tu web y añade esta línea justo antes de `</body>`:
+
+```html
+<script src="chatbot-widget.js"></script>
+```
+
+Así de simple. Si abres la web con el servidor funcionando, verás la burbuja 💬.
+
+### Si tu web está en WordPress
+
+1. Instala el plugin gratuito **"Insert Headers and Footers"**
+2. Ve al escritorio de WordPress → **Ajustes → Insert Headers and Footers**
+3. En la caja **"Footer"**, pega:
+   ```html
+   <script src="https://TU-DOMINIO.com/chatbot-widget.js"></script>
+   ```
+4. Guarda y ya está
 
 ---
 
-## Paso 10 — Verificar la integración
+## PARTE 6 — Subir el servidor a internet
 
-1. Abre tu web en el navegador
-2. Deberías ver una **burbuja de chat** en la esquina inferior derecha
-3. Haz clic en ella y envía un mensaje de prueba
-4. Verifica que las respuestas son correctas y que el diseño encaja con tu web
+Ahora mismo el servidor solo funciona en tu ordenador (`localhost`). Para que funcione en tu web real, necesitas subirlo a un servidor en la nube.
 
----
+### La forma más fácil: Render.com (gratis)
 
-## Gestión y mejora continua
+1. Crea una cuenta en **https://render.com** con tu email
+2. Sube tu proyecto a **GitHub** (solo los archivos, sin el `.env`)
+3. En Render, haz clic en **"New Web Service"**
+4. Conecta tu repositorio de GitHub
+5. Pon esta configuración:
+   - **Build Command:** `npm install`
+   - **Start Command:** `node server.js`
+6. En **"Environment Variables"**, añade:
+   - Key: `QWEN_API_KEY`
+   - Value: `sk-tu-clave-aqui`
+7. Haz clic en **"Create Web Service"**
 
-### Ver las conversaciones
+Render te dará una URL tipo `https://chatbot-seguridad.onrender.com`.
 
-En el Dashboard de Chatbase, ve a **"Conversations"** para revisar:
-- Qué preguntas hacen los usuarios
-- Dónde falla el bot (respuestas incorrectas o "no sé")
-- Patrones de uso más frecuentes
+**Ahora cambia esto en tu `chatbot-widget.js`:**
+```javascript
+// Cambia esta línea
+const URL_SERVIDOR = 'http://localhost:3000/api/chat';
 
-### Añadir más fuentes de datos
-
-Cuando tengas nueva documentación:
-1. Ve a **Sources**
-2. Haz clic en **"Add Source"**
-3. Sube los nuevos archivos
-4. Haz clic en **"Retrain"** para actualizar el bot
-
-### Mejorar respuestas específicas
-
-Si detectas que el bot falla en alguna pregunta:
-1. Ve a **Sources → Q&A**
-2. Añade el par pregunta-respuesta exacto
-3. Las respuestas Q&A tienen prioridad sobre el contenido extraído de documentos
+// Por la URL que te dio Render
+const URL_SERVIDOR = 'https://chatbot-seguridad.onrender.com/api/chat';
+```
 
 ---
 
-## Resumen de planes
+## PARTE 7 — Comprobación final ✅
 
-| Plan | Precio | Chatbots | Mensajes/mes | Caracteres |
-|------|--------|----------|--------------|------------|
-| **Free** | 0 €/mes | 1 | 20/día | 400.000 |
-| **Hobby** | ~19 €/mes | 2 | 2.000 | 11 millones |
-| **Standard** | ~49 €/mes | 5 | 5.000 | 11 millones |
-| **Unlimited** | ~99 €/mes | 10 | Sin límite | 11 millones |
+Haz estas pruebas antes de darlo por terminado:
 
-> Para empezar, el plan **Free** es más que suficiente para validar el chatbot. Escala cuando el volumen de usuarios lo requiera.
-
----
-
-## Solución de problemas frecuentes
-
-| Problema | Causa probable | Solución |
-|----------|----------------|----------|
-| El bot no aparece en la web | Script mal pegado | Verifica que el script está antes de `</body>` |
-| El bot responde cosas incorrectas | Base de conocimiento incompleta | Añade más documentación o Q&A específicos |
-| El bot habla de temas fuera del servicio | Instructions poco restrictivas | Añade "Responde SOLO sobre [tema]" en las instrucciones |
-| El widget no carga en móvil | Conflicto con otros scripts | Asegúrate de que el script tiene el atributo `defer` |
-| Los PDF no se procesan | Formato no compatible | Asegúrate de que el PDF tiene texto seleccionable (no escaneado) |
+- [ ] Abro mi web y veo la burbuja 💬 en la esquina inferior derecha
+- [ ] Hago clic en la burbuja y se abre el chat
+- [ ] Escribo una pregunta sobre mis servicios y el bot responde correctamente
+- [ ] El bot NO inventa cosas que no están en mis documentos
+- [ ] Si pregunto algo que no está en los docs, el bot dice que no sabe y da el email de contacto
+- [ ] El chat funciona en el móvil también
 
 ---
 
-*Manual creado para implementar Chatbase en servicios de ciberseguridad · Versión 2026*
+## Problemas típicos y cómo solucionarlos
+
+| Qué pasa | Por qué pasa | Cómo lo arreglo |
+|----------|-------------|-----------------|
+| La burbuja no aparece | El script no se carga | Comprueba que la ruta al `.js` es correcta |
+| El bot no responde | El servidor no está arrancado | Ejecuta `node -r dotenv/config server.js` |
+| Error "401 Unauthorized" | La API Key está mal | Comprueba el `.env`, no debe tener espacios |
+| El bot responde en inglés | Language no configurado | Añade "Responde siempre en español" a las instrucciones |
+| El bot se inventa cosas | Documentos poco detallados | Añade más información a los `.txt` |
+| Funciona en local pero no en la web | URL del servidor incorrecta | Cambia `localhost` por la URL de Render |
+
+---
+
+## Estructura final del proyecto
+
+Al terminar, tu carpeta debería verse así:
+
+```
+chatbot-seguridad/
+├── server.js              ← El servidor principal
+├── chatbot-widget.js      ← El widget para la web
+├── .env                   ← Tu clave API (¡no subir a GitHub!)
+├── .gitignore             ← Contiene: .env y node_modules
+├── package.json           ← Se crea solo con npm init
+├── node_modules/          ← Se crea solo con npm install
+└── knowledge-base/
+    ├── servicios.txt
+    ├── instalacion.txt
+    └── faq.txt
+```
+
+---
+
+*Manual realizado como proyecto de fin de módulo — ASIR 2025/2026*  
+*Tecnologías usadas: Node.js · Express · Qwen API (Alibaba) · JavaScript vanilla*
