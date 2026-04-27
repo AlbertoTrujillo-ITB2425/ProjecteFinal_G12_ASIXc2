@@ -1,4 +1,3 @@
----
 
 ## Resumen rápido de comandos
 
@@ -36,4 +35,3 @@ docker logs s10_postfix               # Logs de Postfix
 docker logs --tail 50 s10_postfix     # Últimas 50 líneas de Postfix
 ```
 
----
