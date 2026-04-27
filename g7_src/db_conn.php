@@ -1,9 +1,9 @@
 <?php
 
 $host = getenv('DB_HOST') ?: 's4_mariadb';
-$db   = getenv('DB_NAME') ?: 'cyberpyme';
-$user = getenv('DB_USER') ?: 'cyberpyme_admin';
-$pass = getenv('DB_PASSWORD') ?: 'TuPasswordSeguro123!';
+$db   = getenv('DB_NAME') ?: 'cyberaudit';
+$user = getenv('DB_USER') ?: 'cyberuser';
+$pass = getenv('DB_PASSWORD') ?: 'superpassword';
 
 try {
     $pdo = new PDO(

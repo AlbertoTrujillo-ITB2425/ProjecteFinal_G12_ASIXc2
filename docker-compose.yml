@@ -102,10 +102,14 @@ services:
       - net_private
     restart: always
 
+
   # S9: Scanner
   s9_scanner:
     build: .
     container_name: s9_scanner
+    volumes:
+      - ./g7_src:/var/www/html
+    env_file: .env
     networks:
       - net_public
       - net_private
@@ -141,6 +145,16 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
+    networks:
+      - net_private
+    restart: always
+
+  # S12: Ollama AI Engine
+  s12_ollama:
+    image: ollama/ollama:latest
+    container_name: s12_ollama
+    volumes:
+        - ./ollama_data:/root/.ollama
     networks:
       - net_private
     restart: always

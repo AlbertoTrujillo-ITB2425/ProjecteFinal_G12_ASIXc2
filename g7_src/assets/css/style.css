@@ -1,0 +1,129 @@
+/* --- CONFIGURACIÓN DE FUENTES Y VARIABLES --- */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+
+:root { 
+    /* Colores de Acento */
+    --accent-primary: #0ea5e9; 
+    --accent-secondary: #10b981;
+
+    /* MODO OSCURO (Default) */
+    --bg-main: #020617;        
+    --bg-nav: rgba(15, 23, 42, 0.8);
+    --text-main: #f8fafc;      
+    --text-muted: #94a3b8;     
+    --glass-bg: rgba(255, 255, 255, 0.02);
+    --glass-border: rgba(255, 255, 255, 0.05);
+    --grid-color: rgba(255, 255, 255, 0.05);
+    --dropdown-bg: #0f172a;
+}
+
+.light-mode { 
+    /* MODO CLARO */
+    --bg-main: #f8fafc;        
+    --bg-nav: rgba(255, 255, 255, 0.8);
+    --text-main: #0f172a;      
+    --text-muted: #475569;     
+    --glass-bg: rgba(0, 0, 0, 0.02);
+    --glass-border: rgba(0, 0, 0, 0.1);
+    --grid-color: rgba(0, 0, 0, 0.05);
+    --dropdown-bg: #ffffff;
+}
+
+/* --- REGLAS BASE --- */
+body { 
+    top: 0px !important; 
+    position: static !important; 
+    font-family: 'Plus Jakarta Sans', sans-serif; 
+    background-color: var(--bg-main) !important;
+    color: var(--text-main) !important;
+    transition: background-color 0.4s ease, color 0.4s ease; 
+    overflow-x: hidden; 
+}
+
+/* Transiciones suaves para los textos */
+h1, h2, h3, h4, h5, h6, p, span {
+    transition: color 0.4s ease;
+}
+
+/* --- COMPONENTES DE DISEÑO --- */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 1.5rem;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.light-mode .glass-panel { 
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1); 
+}
+
+.glass-panel:hover { 
+    border-color: var(--accent-primary); 
+    transform: translateY(-5px); 
+    box-shadow: 0 20px 40px -10px rgba(14, 165, 233, 0.2); 
+}
+
+/* --- OVERLAYS Y DECORACIÓN --- */
+.grid-overlay { 
+    position: fixed; 
+    inset: 0; 
+    z-index: -1; 
+    background-image: linear-gradient(to right, var(--grid-color) 1px, transparent 1px), 
+                      linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px); 
+    background-size: 40px 40px; 
+    pointer-events: none; 
+    mask-image: linear-gradient(to bottom, black 40%, transparent 100%); 
+    -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+}
+
+.bg-glow { 
+    position: fixed; 
+    top: -10%; 
+    left: -10%; 
+    width: 50vw; 
+    height: 50vw; 
+    background: radial-gradient(circle, rgba(14,165,233,0.05) 0%, rgba(0,0,0,0) 70%); 
+    z-index: -1; 
+    pointer-events: none; 
+}
+
+/* --- UTILIDADES --- */
+.mono-tech { font-family: 'JetBrains Mono', monospace; }
+
+.text-gradient { 
+    background: linear-gradient(to right, #0ea5e9, #38bdf8); 
+    -webkit-background-clip: text; 
+    -webkit-text-fill-color: transparent; 
+    background-clip: text;
+    color: transparent;
+}
+
+/* --- GOOGLE TRANSLATE FIXES --- */
+.goog-te-banner-frame, .goog-tooltip, .goog-te-balloon-frame { display: none !important; }
+font { background-color: transparent !important; box-shadow: none !important; color: inherit !important; }
+#google_translate_element { position: absolute !important; left: -9999px !important; top: -9999px !important; z-index: -999 !important; }
+
+/* --- COMPONENTES ESPECÍFICOS --- */
+.lang-container { position: relative; z-index: 1000; }
+.lang-dropdown { 
+    visibility: hidden; 
+    opacity: 0; 
+    position: absolute; 
+    top: 120%; 
+    right: 0; 
+    background: var(--dropdown-bg); 
+    border: 1px solid var(--glass-border); 
+    border-radius: 1rem; 
+    width: 160px; 
+    transform: translateY(-10px); 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); 
+}
+.light-mode .lang-dropdown { 
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); 
+}
+.lang-container:hover .lang-dropdown { visibility: visible; opacity: 1; transform: translateY(0); }
