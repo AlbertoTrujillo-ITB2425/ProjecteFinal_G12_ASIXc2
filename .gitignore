@@ -4,3 +4,6 @@ ldap_data/
 ldap_config/
 redis_data/
 node_modules/
+snort_logs/
+db_data/
+*.log
