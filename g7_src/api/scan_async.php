@@ -1,43 +1,49 @@
 <?php
-// g7_src/api/scan_async.php
-require_once '../utils.php';
+header('Content-Type: application/json');
 
-$ip = $_GET['ip'] ?? '';
-$apiKey = getEnvVar('SHODAN_API_KEY');
+$data = json_decode(file_get_contents('php://input'), true);
+$target = $data['target'] ?? '';
+$type = $data['action'] ?? 'quick';
 
-$results = [
-    'nmap' => '',
-    'recomendaciones' => []
-];
+// Validación
+if (!filter_var($target, FILTER_VALIDATE_IP) && !preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $target)) {
+    die(json_encode(["status" => "error", "message" => "Objetivo inválido"]));
+}
 
-if ($ip) {
-    // 1. Ejecutar Nmap (Básico)
-    $results['nmap'] = shell_exec("nmap -F " . escapeshellarg($ip));
+$output = "";
 
-    // 2. Consultar Shodan si tenemos la Key
-    if ($apiKey) {
-        $url = "https://api.shodan.io/shodan/host/{$ip}?key={$apiKey}";
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $response = curl_exec($ch);
-        $shodanData = json_decode($response, true);
-        curl_close($ch);
+if ($type === 'shodan') {
+    // 1. REAL SHODAN API (Desde el Backend)
+    $apiKey = 'cTZNVRd5Qf4GOpq7TVUoe3K9TdMN1ubt';
+    $ip = filter_var($target, FILTER_VALIDATE_IP) ? $target : gethostbyname($target);
+    
+    $url = "https://api.shodan.io/shodan/host/$ip?key=$apiKey";
+    $shodan_data = @file_get_contents($url);
+    
+    if ($shodan_data) {
+        $json = json_decode($shodan_data, true);
+        $ports = isset($json['ports']) ? implode(', ', $json['ports']) : 'Ninguno detectado';
+        $vulns = isset($json['vulns']) ? count($json['vulns']) : 0;
+        
+        $output .= "--- DATOS OSINT (SHODAN) ---\n";
+        $output .= "IP: {$json['ip_str']}\n";
+        $output .= "ORG: " . ($json['org'] ?? 'N/A') . "\n";
+        $output .= "OS: " . ($json['os'] ?? 'N/A') . "\n";
+        $output .= "Puertos: $ports\n";
+        $output .= "Vulnerabilidades: $vulns\n";
+    } else {
+        die(json_encode(["status" => "error", "message" => "Shodan HTTP 403: API Key sin créditos o IP no registrada."]));
+    }
 
-        if (isset($shodanData['ports'])) {
-            $results['nmap'] .= "\n[SHODAN INFO] Puertos detectados en histórico: " . implode(', ', $shodanData['ports']);
-            
-            // Añadir recomendaciones basadas en Shodan
-            foreach ($shodanData['data'] as $service) {
-                if (!empty($service['vuls'])) {
-                    $results['recomendaciones'][] = [
-                        'riesgo' => 'CRÍTICO',
-                        'msg' => "CVE detectado en puerto {$service['port']}: " . implode(', ', array_keys($service['vuls']))
-                    ];
-                }
-            }
-        }
+} else {
+    // 2. REAL NMAP (Ejecución Local)
+    $cmd = ($type === 'quick') ? "nmap -F -T4 " : "nmap -A -T4 ";
+    $output = shell_exec($cmd . escapeshellarg($target));
+    
+    if (!$output) {
+        die(json_encode(["status" => "error", "message" => "Fallo al ejecutar Nmap. Asegúrate de tenerlo instalado en el servidor."]));
     }
 }
 
-header('Content-Type: application/json');
-echo json_encode($results);
+echo json_encode(["status" => "success", "result" => $output]);
+?>
