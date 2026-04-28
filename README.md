@@ -2185,6 +2185,13 @@ A deep-dive inspection of the containerized stack revealed 12 active services.
 **Vulnerability Analysis:**
 The presence of **Ollama** and **Postfix** exposed to `0.0.0.0` increases the attack surface significantly. While Nginx is correctly configured, management and mail services lack proper Security Group restrictions.
 
+### 🛡️ Layered Security Validation (Docker vs. AWS SG)
+A defense-in-depth security validation was performed by comparing the internal Docker engine configuration against the AWS perimeter security rules:
+
+*   **Internal State:** `docker ps` shows services such as Ollama (:11434) and Grafana (:3000) mapped to `0.0.0.0`.
+*   **External Audit:** When attempting to connect from the audit host (Kali Linux), all requests resulted in a *Connection Timeout*.
+*   **Conclusion:** The existence of a **second layer of defense** through *AWS Security Groups* is confirmed. This layer effectively filters all unauthorized traffic, adhering to the **"Least Privilege"** principle. Only ports 80 and 443 are accessible from the external network.
+
 
 ## 🚀 Development Phases
 
