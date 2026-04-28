@@ -1981,295 +1981,115 @@ Value Delivered:
 
 ---
 
-## 🔓 Security Testing & Penetration Testing
+# 🔒 Security Audit & Penetration Testing Report - SME Nestlea
+> **Phase:** Pre-Migration Security Validation (IsardVDI Lab)
 
-### Methodology
+---
 
-We follow industry-standard penetration testing methodologies:
-- **OWASP Testing Guide v4.0**
-- **PTES (Penetration Testing Execution Standard)**
-- **NIST SP 800-115 (Technical Guide to Information Security Testing)**
+## 👤 Auditor Information
+*   **Lead Auditor:** `Joel Muñoz` (@joel㉿kali2025)
+*   **Infrastructure Team:** Alberto Trujillo, Luka Ukleba
+*   **Environment:** IsardVDI (Kali Linux 2025)
+*   **Project Root:** `~/proyecto-ciberseg`
 
-#### Testing Phases
+---
 
-```
-1. Reconnaissance → 2. Scanning → 3. Exploitation → 4. Post-Exploitation → 5. Reporting
-```
+## 📂 1. Methodology & Repository Structure
+The project follows a modular security auditing framework (PTES-aligned) to ensure evidence traceability and automation consistency.
 
-### Tools & Environment
-
-**Penetration Testing Lab**:
-- **Attack Machine**: Kali Linux 2024.1 (VirtualBox VM)
-- **Target**: Staging environment (isolated from production)
-- **Network**: 10.10.10.0/24 (private subnet)
-- **Authorization**: Written approval from ITB supervisor (academic project)
-
-**Kali Linux Toolset**:
 ```bash
-# Network reconnaissance
-sudo apt install nmap masscan ike-scan unicornscan
-
-# Web application testing
-sudo apt install nikto wapiti skipfish dirb
-
-# Vulnerability scanning
-sudo apt install burpsuite zaproxy sqlmap
-
-# Exploitation frameworks
-sudo apt install metasploit-framework
-
-# Password cracking
-sudo apt install john hashcat hydra medusa
-
-# Reporting
-sudo apt install dradis faraday
+.
+├── 01_recon        # 🛰️ Host discovery & Port scanning (Nmap logs)
+├── 02_scan         # 🔍 Vulnerability analysis (Trivy, DNS, SSH, SMB)
+├── 03_exploits     # 💣 Proof of Concept (PoC) & Exploitation logs
+├── 04_web_tests    # 🌐 Nginx, PHP API, SQLi & XSS auditing
+├── 05_wazuh_tests  # 🛡️ SIEM Alert validation & FIM telemetry
+├── 06_reports      # 📄 Final documentation (this report)
+├── backups         # 💾 Critical configuration backups
+└── scripts         # ⚙️ Custom Bash automation suite
 ```
 
-### Test Results Summary
+---
 
-#### 1. Network Reconnaissance
+## 🛰️ 2. Reconnaissance Phase (Evidence)
 
-# 🔒 Audit Report - SME Nestlea
+### 2.1 Network Discovery (`01_recon/descubrimiento_red.txt`)
+Identified active assets in the `192.168.120.0/22` segment:
+*   **Gateway:** `192.168.120.1` (pfSense/QEMU)
+*   **Audit Machine:** `192.168.123.167` (Kali Linux)
 
-**Team:** Joel Muñoz, Alberto Trujillo, Luka Ukleba  
-**Date:** $(date +%Y-%m-%d)  
-**Environment:** IsardVDI → AWS (Bash scripts)
+### 2.2 Deep Service Enumeration - pfSense Target (`192.168.120.1`)
+Full port scan (`-p-`) with service versioning and default script execution:
 
-## 📋 Scope
-
-- **Services:** Nginx, MariaDB, OpenLDAP, Docker, PHP API
-- **Tools:** Kali Linux (Nmap, SQLmap, Trivy, Shodan), Wazuh SIEM
-- **Excluded:** DoS attacks, social engineering
-
-## 📊 Findings
-
-
-| ID | Service | Finding | CVSS | Evidence | Mitigation |
-|----|---------|---------|------|----------|------------|
-| D01| Docker  | [pending] | - | trivy_*.txt | Update image |
-| W01| Nginx   | [pending] | - | gobuster_*.txt | server_tokens off |
-
-## 🛡️ Wazuh Validation
-
-- [ ] SSH brute-force alerts
-- [ ] Port scanning detection
-- [ ] FIM (File Integrity Monitoring) in `/etc/` and `/var/www/`
-
-## 📎 Evidences
-
-- `01_recon/` → Active hosts
-- `02_scan/` → Nmap, Trivy, Shodan
-- `03_exploits/` → Metasploit, SQLmap
-- `05_wazuh_tests/` → Validated alerts
+*   **DNS (53/TCP):** `dnsmasq 2.91`. Version fingerprinting is enabled (`bind.version` exposed).
+*   **SSH (2022/TCP):** `OpenSSH 10.0`. Running on a non-standard port; updated version.
+*   **VNC Cluster (5700-5719/TCP):** Massive exposure of **WebSocket (QEMU VNC)** ports.
+    *   **Risk:** Critical attack surface; management consoles are exposed directly to the internal network, potentially allowing unauthorized access to virtual machine displays.
 
 ---
 
-## 🐳 Docker Audit - Proof of Concept (PoC)
+## ⚙️ 3. Automation Suite (Custom Tooling)
 
-**Analyzed Image:** `nginx:latest` (Debian 13.4)  
-**Tool:** Trivy v0.66.0  
-**Date:** $(date +%Y-%m-%d)
+I have developed a suite of Bash scripts to standardize auditing tasks and ensure repeatability during the AWS migration.
 
-### Results
-
-
-| Severity | Count | Example CVE |
-|-----------|----------|----------------|
-| 🔴 CRITICAL | 0 | - |
-| 🟠 HIGH | 15 | CVE-2026-33164 (libde265-0) |
-| 🟡 MEDIUM | [pending] | - |
-
-### Key Findings
-
-1. **libexpat1 (CVE-2026-25210)**: XML parser vulnerable to integer overflow.
-2. **libgcrypt20 (CVE-2026-41989)**: Potential DoS in ECDH operations.
-3. **libde265-0 (CVE-2026-33164)**: Video codec with potential information leak.
-
-### Proposed Mitigation
-
-- Update base image to `nginx:alpine` or `nginx:slim`.
-- Implement automated scanning in the CI/CD pipeline using Trivy.
-- Review and patch affected libraries before production deployment.
-
-### Evidence
-- Full Report: `02_scan/docker/trivy_nginx_public.txt`
-
----
-
-## 🔍 Local Audit - Proof of Concept (PoC)
-
-### Nginx (localhost:80) - Nikto Scan
-
-
-| Finding | Severity | Mitigation |
-|----------|-----------|------------|
-| X-Frame-Options missing | Medium | Add `add_header X-Frame-Options "SAMEORIGIN";` |
-| X-Content-Type-Options missing | Medium | Add `add_header X-Content-Type-Options "nosniff";` |
-| server_tokens | ✅ Secure | Already configured as `off` |
-
-### MariaDB (localhost:3306) - Hardening Check
-
-
-| Configuration | Current Status | Recommendation |
-|--------------|---------------|---------------|
-| require_secure_transport | ❌ OFF | Enable to force TLS connections |
-| secure_file_priv | ⚠️ Empty | Set to: `/var/lib/mysql-files/` |
-| Remote Users | ✅ None | Maintain localhost-only policy |
-
-### Evidences
-
-- Nikto: `04_web_tests/nginx/nikto_local.txt`
-- Nginx Config: `/etc/nginx/nginx.conf`
-- MariaDB Variables: Output of `SHOW VARIABLES LIKE '%secure%';`
-
-
-**Port Scanning**:
+### 🌐 Web Auditing (`scripts/audit_web.sh`)
+Automates Nmap vulnerability scanning, directory brute-forcing with **Gobuster**, and SQLi assessment prep.
 ```bash
-nmap -sS -sV -O -p- --script=vuln cyberaudit-staging.local
-
-PORT      STATE SERVICE    VERSION
-22/tcp    open  ssh        OpenSSH 8.9p1 Ubuntu
-80/tcp    open  http       nginx 1.24.0
-443/tcp   open  https      nginx 1.24.0
-3306/tcp  closed mysql      (internal network only)
-6379/tcp  closed redis      (internal network only)
+# Usage: ./scripts/audit_web.sh <TARGET_IP>
+nmap -sV --script http-enum,http-vuln*,http-security-headers -p 80,443 $TARGET
+gobuster dir -u http://$TARGET -w /usr/share/wordlists/dirb/common.txt
 ```
 
-**Findings**:
-- ✅ Only necessary ports exposed (22, 80, 443)
-- ✅ Database and cache not accessible from internet
-- ✅ SSH using key-based authentication only
-- ✅ All services running latest stable versions
-
----
-
-#### 2. Web Application Scanning
-
-**Nikto Scan**:
+### 🛡️ SIEM Validator (`scripts/test_wazuh.sh`)
+Generates real attack telemetry to verify **Wazuh** monitoring and active response.
 ```bash
-nikto -h https://cyberaudit-staging.local -ssl -Tuning 123456789
+# 1. SSH Brute-force simulation (Triggers rules 5710/5720)
+for i in {1..5}; do ssh -o ConnectTimeout=2 invalid_user@$TARGET "exit"; done
 
-+ Server: nginx/1.24.0
-+ The X-Content-Type-Options header is set to 'nosniff'. ✅
-+ The X-Frame-Options header is set to 'SAMEORIGIN'. ✅
-+ Strict-Transport-Security header is set. ✅
-+ Content-Security-Policy header is set. ✅
-+ 0 vulnerabilities found.
+# 2. File Integrity Monitoring (FIM) Trigger
+echo "test_audit_$(date)" >> /tmp/wazuh_fim_test
 ```
 
-**OWASP ZAP Automated Scan**:
-| Risk Level | Count | Status |
-|------------|-------|--------|
-| High | 0 | ✅ None found |
-| Medium | 2 | ⚠️ False positives (documented) |
-| Low | 5 | ⚠️ Informational only |
-| Informational | 12 | ℹ️ Expected headers |
+### 📦 Cloud & Windows Auditing (`aws_audit.sh` & `audit_windows.sh`)
+*   **AWS:** Integrated with **Prowler** for post-migration CIS compliance checks.
+*   **Windows/SMB:** Specifically scans for SMB shares, user enumeration, and known vulnerabilities (EternalBlue-style checks).
 
 ---
 
-#### 3. SQL Injection Testing
+## 📊 4. Findings & Vulnerability Matrix
 
-**SQLMap Automated Testing**:
+
+
+
+| ID | Finding | Severity | Evidence | Mitigation Strategy |
+| :--- | :--- | :--- | :--- | :--- |
+| **V-01** | **VNC Exposure** | 🔴 **CRITICAL** | `pfsense_completo.txt` | Close 5700-5800 range; use SSH tunneling. |
+| **V-02** | **Docker Vulns** | 🟠 **HIGH** | `02_scan/docker/` | Migrate `nginx:latest` to `nginx:alpine`. |
+| **V-03** | **DNS Leak** | 🔵 **LOW** | `pfsense_completo.txt` | Set `no-version` in `dnsmasq.conf`. |
+| **V-04** | **MariaDB TLS** | 🟡 **MEDIUM** | Local audit | Enforce TLS (`require_secure_transport=ON`). |
+
+---
+
+## 📂 5. Directory Enumeration (OpenLDAP)
+Validated directory structure using custom LDAP cheat sheets (`scripts/ldap_cheatsheet.md`):
 ```bash
-sqlmap -u "https://cyberaudit-staging.local/api/customers?id=1" \
-  --level=5 --risk=3 --batch
-
-[INFO] GET parameter 'id' does not seem to be injectable
-[WARNING] HTTP error codes detected during run:
-403 (Forbidden) - 127 times  ← BunkerWeb WAF blocking
-
-✅ Result: All SQL injection attempts BLOCKED
-```
-
-**Manual Testing** (Burp Suite):
-```http
-GET /api/customers?id=1' OR '1'='1 HTTP/1.1
-Host: cyberaudit-staging.local
-
-Response:
-HTTP/1.1 403 Forbidden
-X-BunkerWeb-Block: SQL Injection pattern detected
-
-✅ Result: WAF successfully blocking injections
+# Validated command for user enumeration:
+ldapsearch -x -H ldap://<IP> -b "ou=users,dc=nestlea,dc=local" "(objectClass=*)"
 ```
 
 ---
 
-#### 4. Cross-Site Scripting (XSS)
+## 🚀 6. Roadmap: Secure AWS Migration
+Based on IsardVDI findings, the following "Golden Rules" are mandatory for the AWS deployment:
 
-**Test Payloads**:
-```html
-<script>alert('XSS')</script>
-<img src=x onerror=alert('XSS')>
-<svg onload=alert('XSS')>
-```
-
-**Results**:
-| Input Field | Payload | Result | Protection |
-|-------------|---------|--------|------------|
-| Search box | `<script>alert(1)</script>` | ✅ Blocked | HTML encoding |
-| Comment form | `<img src=x onerror=alert(1)>` | ✅ Blocked | CSP |
-| URL param | `?name=<svg onload=alert(1)>` | ✅ Blocked | WAF |
-
-**Content-Security-Policy Verification**:
-```http
-Content-Security-Policy: default-src 'self'; 
-  script-src 'self' 'nonce-ABC123'; 
-  object-src 'none'; 
-  base-uri 'self';
-
-✅ Result: Strong CSP prevents XSS execution
-```
+1.  **Network Hardening:** Replicate strict firewall rules via **AWS Security Groups** to eliminate the VNC exposure found in the lab.
+2.  **Container Security:** Implement **Trivy** scanning in the CI/CD pipeline before pushing images to Amazon ECR.
+3.  **Cloud Auditing:** Execute `scripts/aws_audit.sh` (Prowler) immediately after Alberto/Luka finalize the cloud infrastructure.
 
 ---
-
-#### 5. Authentication Testing
-
-**Brute Force Attack**:
-```bash
-hydra -l admin -P /usr/share/wordlists/rockyou.txt \
-  cyberaudit-staging.local https-post-form \
-  "/login:username=^USER^&password=^PASS^:F=Invalid" \
-  -t 4
-
-[STATUS] Account locked after 5 failed attempts
-[ERROR] IP banned for 1 hour
-
-✅ Result: Brute force protection working
-```
-
-**Session Security Tests**:
-- ✅ Session fixation: Protected (new session ID after login)
-- ✅ Session hijacking: Protected (User-Agent validation)
-- ✅ Cookie security: `HttpOnly`, `Secure`, `SameSite=Strict` all set
-
----
-
-### Final Security Score
-
-| Tool | Score | Grade |
-|------|-------|-------|
-| **Mozilla Observatory** | 95/100 | A+ |
-| **SSL Labs** | A+ | A+ |
-| **SecurityHeaders.com** | A | A |
-| **OWASP ZAP** | 0 High, 2 Medium | ✅ Pass |
-| **Qualys SSL Server Test** | 100/100 | A+ |
-
-### Penetration Test Report
-
-**Duration**: 40 hours (5 days)  
-**Tester**: Group 7 (Alberto, Joel, Luka)  
-**Target**: Staging environment  
-**Authorization**: Academic project (ITB approval)  
-
-**Vulnerability Summary**:
-- **Critical**: 0
-- **High**: 0
-- **Medium**: 2 (accepted risks, documented)
-- **Low**: 5 (fixed post-test)
-- **Informational**: 12
-
-**Conclusion**: ✅ **Production-ready** - No critical or high-severity vulnerabilities found. Platform exceeds industry security standards.
+**Report Finalized by:** Joel Muñoz  
+**Evidence Logs:** `~/proyecto-ciberseg/06_reports/`  
+**Last Updated:** April 14, 2026
 
 ---
 
