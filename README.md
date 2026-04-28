@@ -2093,6 +2093,83 @@ Based on IsardVDI findings, the following "Golden Rules" are mandatory for the A
 
 ---
 
+---
+
+# ☁️ Phase 2: AWS Cloud Audit & Production Validation
+**Status:** ✅ Infrastructure Audited (Live Environment)  
+**Target IP:** `32.194.186.97`  
+**Host:** `ec2-32-194-186-97.compute-1.amazonaws.com`
+
+---
+
+## 1. 🛰️ External Reconnaissance (AWS vs. Lab)
+Following the migration, a new reconnaissance phase was executed to verify the effectiveness of the **AWS Security Groups** compared to the IsardVDI lab.
+
+### 🔍 Nmap Scan Results
+```bash
+PORT    STATE SERVICE  VERSION
+80/tcp  open  http     nginx 1.24.0
+443/tcp open  ssl/http nginx 1.24.0
+```
+**Security Improvements:**
+*   ✅ **VNC Cluster Neutralized:** All 20 WebSocket ports (5700-5719) identified in the lab are now **Closed**.
+*   ✅ **Management Access Hardening:** Port 2022 (SSH) is no longer exposed to the public internet, confirming a "Least Privilege" policy in AWS.
+
+---
+
+## 2. 🌐 Web Application Hardening Analysis
+
+### 🛡️ Security Headers Validation
+The production Nginx server shows significant improvements in defensive headers:
+*   `X-XSS-Protection: 1; mode=block` (Mitigates Cross-Site Scripting).
+*   `X-Content-Type-Options: nosniff` (Prevents MIME-sniffing attacks).
+*   `Content-Security-Policy`: Basic implementation detected.
+
+⚠️ **Pending Finding (Low):** `Strict-Transport-Security` (HSTS) is not yet configured, leaving the site potentially vulnerable to SSL Striping.
+
+---
+
+## 📂 3. Advanced Directory Enumeration (Fuzzing)
+
+A recursive scan was performed on the `/api/` directory using **Gobuster** to identify sensitive files.
+
+### Key Discoveries:
+*   **Access Control:** Global `HTTP 403 Forbidden` was verified for system files (`.bash_history`, `.ssh`, `.git`), proving that hardening is consistent across subdirectories.
+*   **Identified Endpoint:** `https://32.194.186` (HTTP 200). This file exists and is the primary target for API auditing.
+*   **Security by Obfuscation:** The server implements a "Wildcard/Honeytoken" strategy, returning a constant length of **8849 bytes** for common WordPress paths (`wp-login`, `wp-config`) to mislead automated scanners.
+
+---
+
+## 💣 4. WAF & SQL Injection Validation
+
+Direct manual testing was performed against the identified API endpoint to verify **BunkerWeb WAF** or **AWS WAF** effectiveness.
+
+### Test Payload:
+```bash
+curl -i -k "https://32.194.186?id=1'%20OR%20'1'='1"
+```
+
+### Result Analysis:
+*   **Behavior:** The system successfully detected the SQLi pattern.
+*   **Defense Status:** Verified. The Web Application Firewall (WAF) filters malicious payloads before they reach the backend application logic.
+
+---
+
+## 🏆 Final Security Assessment (Post-Migration)
+
+
+| Metric | Lab (IsardVDI) | Production (AWS) | Status |
+| :--- | :--- | :--- | :--- |
+| **Attack Surface** | 🟠 High (20+ ports) | 🟢 Low (2 ports) | **Improved** |
+| **Vuln Management** | 🔴 Critical (Outdated) | 🟡 Medium (Hardened) | **Improved** |
+| **Web Security** | 🔴 Poor (No headers) | 🟢 Strong (WAF Active) | **Improved** |
+| **SIEM Integration**| ✅ Active | ✅ Active (Agent) | **Verified** |
+
+**Conclusion:** The infrastructure has been successfully secured during the cloud migration. The critical risks identified in Phase 1 (VNC exposure and lack of web headers) have been **fully mitigated**.
+
+---
+
+
 ## 🚀 Development Phases
 
 ### Timeline Overview
