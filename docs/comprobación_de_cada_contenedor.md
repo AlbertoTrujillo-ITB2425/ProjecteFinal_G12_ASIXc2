@@ -34,4 +34,3 @@ docker logs -f s11_snort              # Snort en tiempo real
 docker logs s10_postfix               # Logs de Postfix
 docker logs --tail 50 s10_postfix     # Últimas 50 líneas de Postfix
 ```
-533267004217
