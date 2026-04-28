@@ -2169,6 +2169,22 @@ curl -i -k "https://32.194.186?id=1'%20OR%20'1'='1"
 
 ---
 
+### 🐳 Docker Container Audit (AWS Production)
+A deep-dive inspection of the containerized stack revealed 12 active services.
+
+
+| Container | Service | External Port | Security Status |
+| :--- | :--- | :--- | :--- |
+| `s1_nginx` | Web Server | 80, 443 | ✅ Hardened |
+| `s12_ollama` | AI Service | 11434 | 🔴 EXPOSED (Risk: Resource Hijacking) |
+| `s10_postfix`| Mail Server | 25, 587 | 🔴 EXPOSED (Risk: Open Relay/Spam) |
+| `s8_grafana` | Monitoring | 3000 | 🟡 EXPOSED (Risk: Info Leak) |
+| `s4_mariadb` | Database | Internal Only | ✅ Secure (No external mapping) |
+| `s6_openldap`| Directory | Internal Only | ✅ Secure (No external mapping) |
+
+**Vulnerability Analysis:**
+The presence of **Ollama** and **Postfix** exposed to `0.0.0.0` increases the attack surface significantly. While Nginx is correctly configured, management and mail services lack proper Security Group restrictions.
+
 
 ## 🚀 Development Phases
 
