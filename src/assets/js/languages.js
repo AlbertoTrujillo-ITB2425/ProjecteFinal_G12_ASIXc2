@@ -1,15 +1,13 @@
 /**
- * CYBERPYME SOC - Diccionario de Traducción G12 y Motor i18n
+ * CYBERPYME SOC - Diccionario de Traducción G12
+ * NOTA: La lógica de cambio de idioma ahora está centralizada de forma segura en main.js
  */
 
 const translations = {
     es: {
-        // --- NAVBAR & GENERAL ---
         "nav_login": "LOGIN AUDITOR",
         "nav_active": "SOC G12 LIVE ENGINE",
         "footer_rights": "© 2026 CYBERPYME SOC G12. ASEGURANDO EL FUTURO.",
-
-        // --- INDEX.PHP ---
         "hero_tag": "G12 NEXT-GEN SOC",
         "hero_title": "Auditoría <br><span class='text-sky-500 italic'>Inteligente.</span>",
         "hero_desc": "Defensa proactiva y monitorización de activos potenciada por AI-Engine Qwen2.5.",
@@ -22,8 +20,6 @@ const translations = {
         "status_identity": "IDENTIDAD DEL AUDITOR",
         "status_awaiting": "Esperando autenticación Web3...",
         "status_health": "SALUD DE LA RED",
-
-        // --- SCANNER.PHP (CAPTURA 2) ---
         "console_title": "G12 SECURITY CONSOLE",
         "params_title": "PARÁMETROS DE AUDITORÍA",
         "params_host": "HOST OBJETIVO",
@@ -37,18 +33,13 @@ const translations = {
         "ai_resp_lang": "IDIOMA DE RESPUESTA:",
         "console_output_title": "SALIDA DE CONSOLA",
         "system_status": "ESTADO DEL SISTEMA: ACTIVO",
-        
-        // --- DINÁMICOS (JS) ---
         "audit_start": "[SISTEMA] Iniciando auditoría sobre:",
         "audit_analyzing": "[IA] Analizando vectores de ataque..."
     },
     en: {
-        // --- NAVBAR & GENERAL ---
         "nav_login": "AUDITOR LOGIN",
         "nav_active": "SOC G12 LIVE ENGINE",
         "footer_rights": "© 2026 CYBERPYME SOC G12. SECURING THE FUTURE.",
-
-        // --- INDEX.PHP ---
         "hero_tag": "G12 NEXT-GEN SOC",
         "hero_title": "Intelligent <br><span class='text-sky-500 italic'>Audit.</span>",
         "hero_desc": "Proactive defense and asset monitoring powered by AI-Engine Qwen2.5.",
@@ -61,8 +52,6 @@ const translations = {
         "status_identity": "AUDITOR IDENTITY",
         "status_awaiting": "Awaiting Web3 Authentication...",
         "status_health": "NETWORK HEALTH",
-
-        // --- SCANNER.PHP ---
         "console_title": "G12 SECURITY CONSOLE",
         "params_title": "AUDIT PARAMETERS",
         "params_host": "TARGET HOST",
@@ -76,18 +65,13 @@ const translations = {
         "ai_resp_lang": "RESPONSE LANGUAGE:",
         "console_output_title": "CONSOLE OUTPUT",
         "system_status": "SYSTEM STATUS: ACTIVE",
-
-        // --- DINÁMICOS (JS) ---
         "audit_start": "[SYSTEM] Starting audit on:",
         "audit_analyzing": "[AI] Analyzing attack vectors..."
     },
     ca: {
-        // --- NAVBAR & GENERAL ---
         "nav_login": "ACCÉS AUDITOR",
         "nav_active": "SOC G12 LIVE ENGINE",
         "footer_rights": "© 2026 CYBERPYME SOC G12. ASSEGURANT EL FUTUR.",
-
-        // --- INDEX.PHP ---
         "hero_tag": "G12 NEXT-GEN SOC",
         "hero_title": "Auditoria <br><span class='text-sky-500 italic'>Intel·ligent.</span>",
         "hero_desc": "Defensa proactiva i monitorització d'actius potenciada per AI-Engine Qwen2.5.",
@@ -100,8 +84,6 @@ const translations = {
         "status_identity": "IDENTITAT DE L'AUDITOR",
         "status_awaiting": "Esperant autenticació Web3...",
         "status_health": "SALUT DE LA XARXA",
-
-        // --- SCANNER.PHP ---
         "console_title": "G12 SECURITY CONSOLE",
         "params_title": "PARÀMETRES D'AUDITORIA",
         "params_host": "HOST OBJECTIU",
@@ -115,46 +97,7 @@ const translations = {
         "ai_resp_lang": "IDIOMA DE RESPOSTA:",
         "console_output_title": "SORTIDA DE CONSOLA",
         "system_status": "ESTAT DEL SISTEMA: ACTIU",
-
-        // --- DINÁMICOS (JS) ---
         "audit_start": "[SISTEMA] Iniciant auditoria sobre:",
         "audit_analyzing": "[IA] Analitzant vectors d'atac..."
     }
 };
-
-// ====== MOTOR DE TRADUCCIÓN ======
-
-function changeLanguage(lang) {
-    // 1. Guardar la preferencia del usuario en el navegador para que persista al recargar
-    localStorage.setItem('soc_language', lang);
-
-    // 2. Cambiar el texto del botón del menú desplegable (si existe)
-    const langText = document.getElementById('current-lang-text');
-    if (langText) {
-        langText.innerText = lang.toUpperCase();
-    }
-
-    // 3. Buscar todos los elementos HTML que tengan el atributo data-i18n
-    const elements = document.querySelectorAll('[data-i18n]');
-    
-    // 4. Reemplazar el texto de cada elemento usando la clave del diccionario
-    elements.forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        
-        // Verificamos si el idioma y la clave existen en nuestro diccionario
-        if (translations[lang] && translations[lang][key]) {
-            // Usamos innerHTML para respetar etiquetas como <br> o <span class="...">
-            el.innerHTML = translations[lang][key];
-        }
-    });
-
-    console.log("Sistema traducido al: " + lang);
-}
-
-// ====== INICIALIZACIÓN AUTOMÁTICA ======
-// Cuando la página termine de cargar, aplicamos el idioma guardado automáticamente
-document.addEventListener('DOMContentLoaded', () => {
-    // Obtiene el idioma guardado en localStorage o usa 'es' (español) por defecto
-    const savedLang = localStorage.getItem('soc_language') || 'es';
-    changeLanguage(savedLang);
-});
