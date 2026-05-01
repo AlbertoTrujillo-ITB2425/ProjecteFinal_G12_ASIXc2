@@ -1,9 +1,9 @@
 <?php
 /**
  * CYBERPYME SOC - Professional Edition v6.5.0
- * Engine: Optimizado, Libre de Bugs, Modular (JS Externo) y Enlaces Nativos (Docker Ready)
+ * Engine: Optimizado, Libre de Bugs, Monitorización Real de Docker
  */
-session_start(); // CRÍTICO: Siempre en la línea 1
+session_start();
 
 // Cabeceras de seguridad
 header("X-XSS-Protection: 1; mode=block");
@@ -16,10 +16,55 @@ $userName = $_SESSION['user_name'] ?? 'Auditor SOC';
 $userRole = $_SESSION['user_role'] ?? 'Analista Nivel 1';
 $avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($userName) . "&background=0ea5e9&color=fff&bold=true";
 
-// Simulador de datos para el Dashboard
-$activeThreats = rand(2, 12);
-$blockedIPs = rand(100, 500);
-$sysHealth = 98;
+// =========================================================================
+// MONITORIZACIÓN REAL DE INFRAESTRUCTURA (DOCKER)
+// =========================================================================
+
+// Función para comprobar si un puerto de un contenedor está abierto
+function checkContainer($host, $port, $timeout = 1) {
+    $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
+    if ($fp) {
+        fclose($fp);
+        return true;
+    }
+    return false;
+}
+
+// Lista de contenedores reales de tu 'docker ps'
+$infrastructure = [
+    ['host' => 's1_nginx', 'port' => 80, 'name' => 'Nginx Reverse Proxy', 'os' => 'Alpine'],
+    ['host' => 's4_mariadb', 'port' => 3306, 'name' => 'MariaDB Database', 'os' => 'Debian'],
+    ['host' => 's5_redis', 'port' => 6379, 'name' => 'Redis Cache', 'os' => 'Alpine'],
+    ['host' => 's12_ollama', 'port' => 11434, 'name' => 'Ollama AI Engine', 'os' => 'Ubuntu'],
+    ['host' => 's8_grafana', 'port' => 3000, 'name' => 'Grafana Dashboards', 'os' => 'Alpine'],
+    ['host' => 's6_openldap', 'port' => 389, 'name' => 'OpenLDAP Auth', 'os' => 'Debian'],
+    ['host' => 's7_wazuh', 'port' => 55000, 'name' => 'Wazuh Manager', 'os' => 'CentOS'],
+];
+
+$activeNodesCount = 0;
+$nodeStatusList = [];
+
+foreach ($infrastructure as $node) {
+    $isOnline = checkContainer($node['host'], $node['port']);
+    if ($isOnline) $activeNodesCount++;
+    
+    $nodeStatusList[] = [
+        'name' => $node['name'],
+        'host' => $node['host'],
+        'os' => $node['os'],
+        'status' => $isOnline ? 'Online' : 'Offline',
+        'color' => $isOnline ? 'text-emerald-400' : 'text-red-500',
+        'icon' => $isOnline ? 'fa-check-circle' : 'fa-times-circle'
+    ];
+}
+
+$totalNodes = count($infrastructure);
+$sysHealth = $totalNodes > 0 ? round(($activeNodesCount / $totalNodes) * 100) : 0;
+
+// Para los logs y amenazas, idealmente aquí harías una consulta real a Wazuh o a tu base de datos.
+// Por ahora, dejamos valores placeholder si no hay conexión directa a la API de Wazuh implementada aún.
+$activeThreats = 0; // Aquí iría: wazuh_api_get_active_threats()
+$blockedIPs = 0;    // Aquí iría: snort_get_blocked_ips()
 ?>
 <!DOCTYPE html>
 <html lang="es" class="scroll-smooth">
@@ -34,7 +79,6 @@ $sysHealth = 98;
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* Modos visuales */
         body.light-mode { background-color: #f8fafc !important; color: #0f172a !important; }
         body.light-mode .text-white { color: #0f172a !important; }
         body.light-mode .text-slate-400 { color: #475569 !important; }
@@ -55,7 +99,6 @@ $sysHealth = 98;
         .glass-panel:hover { border-color: rgba(14, 165, 233, 0.3); }
         .bg-glow { background: radial-gradient(circle at 50% -20%, rgba(14, 165, 233, 0.15) 0%, transparent 60%); }
         
-        /* Animación Escáner */
         @keyframes scanline {
             0% { transform: translateY(-100%); }
             100% { transform: translateY(100%); }
@@ -108,7 +151,7 @@ $sysHealth = 98;
             <div class="glass-panel p-5 border-l-4 border-l-sky-500 relative overflow-hidden">
                 <i class="fas fa-network-wired absolute right-[-10px] bottom-[-10px] text-5xl opacity-5 text-sky-500"></i>
                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Nodos Activos</p>
-                <p class="text-3xl font-black">24</p>
+                <p class="text-3xl font-black"><?php echo $activeNodesCount; ?>/<?php echo $totalNodes; ?></p>
             </div>
             <div class="glass-panel p-5 border-l-4 border-l-red-500 relative overflow-hidden">
                 <i class="fas fa-bug absolute right-[-10px] bottom-[-10px] text-5xl opacity-5 text-red-500"></i>
@@ -127,7 +170,8 @@ $sysHealth = 98;
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-20"> <div class="lg:col-span-2 flex flex-col gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-20"> 
+            <div class="lg:col-span-2 flex flex-col gap-6">
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="glass-panel p-8 group relative overflow-hidden flex flex-col pointer-events-auto">
@@ -150,15 +194,15 @@ $sysHealth = 98;
                         <h3 class="text-lg font-bold mb-2 uppercase tracking-tight" data-i18n="card_threat_title">Threat Intel</h3>
                         <p class="text-slate-500 text-sm mb-6 flex-grow" data-i18n="card_threat_desc">Detección de intrusiones y monitorización de tráfico en tiempo real.</p>
                         
-                        <a href="#" class="w-full py-3 rounded-lg bg-slate-800 border border-amber-500/30 hover:bg-slate-700 text-amber-400 font-bold text-xs uppercase tracking-widest transition-all flex justify-center items-center gap-2 cursor-pointer text-center">
-                            <i class="fas fa-terminal"></i> <span data-i18n="card_threat_btn">Monitor en vivo</span>
+                        <a href="http://<?php echo $_SERVER['SERVER_NAME']; ?>:3000" target="_blank" class="w-full py-3 rounded-lg bg-slate-800 border border-amber-500/30 hover:bg-slate-700 text-amber-400 font-bold text-xs uppercase tracking-widest transition-all flex justify-center items-center gap-2 cursor-pointer text-center">
+                            <i class="fas fa-terminal"></i> <span data-i18n="card_threat_btn">Monitor Grafana</span>
                         </a>
                     </div>
                 </div>
 
                 <div class="glass-panel p-6 pointer-events-auto">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest"><i class="fas fa-server mr-2"></i>Nodos Monitoreados</h3>
+                        <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest"><i class="fas fa-server mr-2"></i>Nodos Docker Monitorizados</h3>
                         <span class="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded border border-emerald-500/30">Live Sync</span>
                     </div>
                     <div class="overflow-x-auto">
@@ -166,24 +210,20 @@ $sysHealth = 98;
                             <thead class="text-[10px] uppercase bg-white/5 border-b border-white/10">
                                 <tr>
                                     <th class="px-4 py-2">Hostname</th>
-                                    <th class="px-4 py-2">IP Local</th>
+                                    <th class="px-4 py-2">Servicio</th>
                                     <th class="px-4 py-2">OS</th>
                                     <th class="px-4 py-2 text-right">Status</th>
                                 </tr>
                             </thead>
                             <tbody class="text-xs font-mono">
+                                <?php foreach ($nodeStatusList as $node): ?>
                                 <tr class="border-b border-white/5 hover:bg-white/5">
-                                    <td class="px-4 py-3 text-white">web-prod-01 (s1_nginx)</td>
-                                    <td class="px-4 py-3">172.x.x.x</td>
-                                    <td class="px-4 py-3"><i class="fab fa-linux text-slate-500 mr-1"></i> Alpine</td>
-                                    <td class="px-4 py-3 text-right text-emerald-400"><i class="fas fa-circle text-[8px] mr-1"></i>Secure</td>
+                                    <td class="px-4 py-3 text-white"><?php echo $node['host']; ?></td>
+                                    <td class="px-4 py-3"><?php echo $node['name']; ?></td>
+                                    <td class="px-4 py-3"><i class="fab fa-linux text-slate-500 mr-1"></i> <?php echo $node['os']; ?></td>
+                                    <td class="px-4 py-3 text-right <?php echo $node['color']; ?>"><i class="fas <?php echo $node['icon']; ?> text-[10px] mr-1"></i><?php echo $node['status']; ?></td>
                                 </tr>
-                                <tr class="border-b border-white/5 hover:bg-white/5">
-                                    <td class="px-4 py-3 text-white">db-cluster-main (s4_mariadb)</td>
-                                    <td class="px-4 py-3">172.x.x.x</td>
-                                    <td class="px-4 py-3"><i class="fab fa-linux text-slate-500 mr-1"></i> Ubuntu</td>
-                                    <td class="px-4 py-3 text-right text-amber-400"><i class="fas fa-circle text-[8px] mr-1"></i>Warning</td>
-                                </tr>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
@@ -198,71 +238,33 @@ $sysHealth = 98;
                     
                     <div class="mb-4">
                         <div class="flex justify-between text-xs mb-1">
-                            <span>CPU (Qwen Engine s12)</span>
-                            <span class="text-sky-400 font-mono">45%</span>
+                            <span>Sys Health Index</span>
+                            <span class="text-sky-400 font-mono"><?php echo $sysHealth; ?>%</span>
                         </div>
                         <div class="w-full bg-slate-800 rounded-full h-1.5">
-                            <div class="bg-sky-500 h-1.5 rounded-full" style="width: 45%"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <div class="flex justify-between text-xs mb-1">
-                            <span>Memoria RAM</span>
-                            <span class="text-amber-400 font-mono">78%</span>
-                        </div>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5">
-                            <div class="bg-amber-500 h-1.5 rounded-full" style="width: 78%"></div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span>Tráfico de Red</span>
-                            <span class="text-emerald-400 font-mono">1.2 GB/s</span>
-                        </div>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5">
-                            <div class="bg-emerald-500 h-1.5 rounded-full" style="width: 30%"></div>
+                            <div class="bg-sky-500 h-1.5 rounded-full transition-all duration-1000" style="width: <?php echo $sysHealth; ?>%"></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="glass-panel p-6 flex-grow flex flex-col pointer-events-auto">
-                    <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2">Log de Eventos (Wazuh s7)</h3>
+                    <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2">Log de Eventos (Simulado)</h3>
                     
                     <ul class="space-y-4 flex-grow">
-                        <li class="flex items-start gap-3">
-                            <div class="w-6 h-6 rounded bg-red-500/10 flex items-center justify-center shrink-0 border border-red-500/20 mt-0.5">
-                                <i class="fas fa-shield-virus text-red-400 text-[10px]"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs text-white">Intento SSH bloqueado en s2_node</p>
-                                <p class="text-[9px] text-slate-500 font-mono">Hace 2 min • IP: 185.22.x.x</p>
-                            </div>
-                        </li>
                         <li class="flex items-start gap-3">
                             <div class="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20 mt-0.5">
                                 <i class="fas fa-check text-emerald-400 text-[10px]"></i>
                             </div>
                             <div>
-                                <p class="text-xs text-white">Firma de Malware actualizada (Snort)</p>
-                                <p class="text-[9px] text-slate-500 font-mono">Hace 45 min • s11_snort</p>
-                            </div>
-                        </li>
-                        <li class="flex items-start gap-3">
-                            <div class="w-6 h-6 rounded bg-sky-500/10 flex items-center justify-center shrink-0 border border-sky-500/20 mt-0.5">
-                                <i class="fas fa-user-check text-sky-400 text-[10px]"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs text-white">Autenticación LDAP exitosa</p>
-                                <p class="text-[9px] text-slate-500 font-mono">Hace 1 hora • Auth (s6_openldap)</p>
+                                <p class="text-xs text-white">Docker Network Check</p>
+                                <p class="text-[9px] text-slate-500 font-mono">Justo ahora • Escaneo interno</p>
                             </div>
                         </li>
                     </ul>
                     
-                    <button class="w-full mt-4 py-2 border border-white/10 rounded text-[10px] uppercase font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer">
+                    <a href="http://<?php echo $_SERVER['SERVER_NAME']; ?>:3000" target="_blank" class="w-full mt-4 py-2 border border-white/10 rounded text-[10px] uppercase font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer text-center block">
                         Ver Todos los Logs en Grafana
-                    </button>
+                    </a>
                 </div>
 
             </div>
