@@ -47,7 +47,7 @@
 | **Payment Fees** | 0.0008% (crypto) | 3.9% (Stripe) |
 | **Contract Length** | Monthly (no lock-in) | Annual minimum |
 
-> 📊 See [BUSINESS_MODEL.md](./BUSINESS_MODEL.md) for full market analysis, pricing, financial projections, and use cases.
+> 📊 See [BUSINESS_MODEL.md](./docs/md/BUSINESS_MODEL.md) for full market analysis, pricing, financial projections, and use cases.
 
 ---
 
@@ -92,7 +92,7 @@ curl -I http://localhost:8080
 
 **Prerequisites**: Docker 20.10+, Docker Compose 2.0+, Git 2.30+
 
-> 🚀 See [DEPLOYMENT.md](./DEPLOYMENT.md) for the full deployment guide including production (AWS) setup.
+> 🚀 See [DEPLOYMENT.md](./docs/md/DEPLOYMENT.md) for the full deployment guide including production (AWS) setup.
 
 ---
 
@@ -147,11 +147,11 @@ ProjecteFinal_G7/
 
 | Document | Description |
 |---------|-------------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, network topology, service stack, monitoring |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Local and production deployment, environment variables, troubleshooting |
-| [SECURITY.md](./SECURITY.md) | Security architecture, pentesting reports, compliance |
-| [BUSINESS_MODEL.md](./BUSINESS_MODEL.md) | Market analysis, pricing, financial projections, use cases |
-| [DEVELOPMENT.md](./DEVELOPMENT.md) | Dev environment setup, CI/CD pipeline, automation scripts |
+| [ARCHITECTURE.md](./docs/md/ARCHITECTURE.md) | System design, network topology, service stack, monitoring |
+| [DEPLOYMENT.md](./docs/md/DEPLOYMENT.md) | Local and production deployment, environment variables, troubleshooting |
+| [SECURITY.md](./docs/md/SECURITY.md) | Security architecture, pentesting reports, compliance |
+| [BUSINESS_MODEL.md](./docs/md/BUSINESS_MODEL.md) | Market analysis, pricing, financial projections, use cases |
+| [DEVELOPMENT.md](./docs/md/DEVELOPMENT.md) | Dev environment setup, CI/CD pipeline, automation scripts |
 | [docs/admin_manual.md](./docs/admin_manual.md) | Detailed admin and configuration manual |
 | [docs/client_manual.md](./docs/client_manual.md) | End-user guide and FAQs |
 | [docs/api/openapi.yaml](./docs/api/openapi.yaml) | REST API specification |
