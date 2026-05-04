@@ -39,7 +39,7 @@ chmod 600 vockey.pem
 Utilitzi la següent comanda per accedir al servidor, substituint `vockey.pem` per la ruta al seu fitxer si és necessari:
 
 ```bash
-ssh -i "vockey.pem" ubuntu@ec2-32-194-186-97.compute-1.amazonaws.com
+ssh -i "vockey.pem" ubuntu@ec2-3-215-30-52.compute-1.amazonaws.com
 ```
 
 Un cop executada amb èxit, tindrà accés a la línia de comandes del servidor remot.
