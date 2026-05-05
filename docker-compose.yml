@@ -8,7 +8,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./g7_src:/var/www/html
+      - ./src:/var/www/html
       - ./config/nginx/default.conf:/etc/nginx/conf.d/default.conf
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot
@@ -25,7 +25,7 @@ services:
     build: .
     container_name: s2_node
     volumes:
-      - ./g7_src:/var/www/html
+      - ./src:/var/www/html
     networks:
       - net_public
       - net_private
@@ -35,7 +35,7 @@ services:
     build: .
     container_name: s3_node
     volumes:
-      - ./g7_src:/var/www/html
+      - ./src:/var/www/html
     networks:
       - net_public
       - net_private
@@ -108,7 +108,7 @@ services:
     build: .
     container_name: s9_scanner
     volumes:
-      - ./g7_src:/var/www/html
+      - ./src:/var/www/html
     env_file: .env
     networks:
       - net_public

@@ -1,4 +1,5 @@
 <?php
+<<<<<<< Updated upstream
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  socmail.php — G7 SOC Mail & Snort Monitor                  ║
 // ║  Lee correos reales de /var/mail/root y alertas de Snort    ║
@@ -66,6 +67,31 @@ function parseMboxFile(string $path): array {
 
     // Los más recientes primero
     return array_reverse($messages);
+=======
+session_start();
+require_once 'db_conn.php';
+
+header("X-XSS-Protection: 1; mode=block");
+header("X-Content-Type-Options: nosniff");
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: auth.php");
+    exit;
+}
+
+$userName = $_SESSION['user_name'] ?? 'Auditor SOC';
+$userRole = $_SESSION['user_role'] ?? 'Analista Nivel 1';
+$avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($userName) . "&background=0ea5e9&color=fff&bold=true";
+
+$MAIL_MBOX_PATH   = getenv('MAIL_MBOX_PATH') ?: '/var/mail/root';
+$SNORT_ALERT_PATH = getenv('SNORT_ALERT_PATH') ?: '/var/log/snort/alert';
+
+function safeReadFile(string $path): string {
+    if (!file_exists($path) || !is_readable($path)) return '';
+    $data = file_get_contents($path);
+    return is_string($data) ? $data : '';
+>>>>>>> Stashed changes
 }
 
 function extractHeader(string $headers, string $name): string {
@@ -76,6 +102,7 @@ function extractHeader(string $headers, string $name): string {
 }
 
 function decodeMimeStr(string $str): string {
+<<<<<<< Updated upstream
     if (function_exists('iconv_mime_decode')) {
         return iconv_mime_decode($str, ICONV_MIME_DECODE_CONTINUE_ON_ERROR, 'UTF-8');
     }
@@ -87,10 +114,18 @@ function decodeMimeStr(string $str): string {
         $decoded  = $encoding === 'B' ? base64_decode($encoded) : quoted_printable_decode(str_replace('_', ' ', $encoded));
         return mb_convert_encoding($decoded, 'UTF-8', $charset);
     }, $str);
+=======
+    if ($str === '') return '';
+    if (function_exists('iconv_mime_decode')) {
+        $decoded = iconv_mime_decode($str, ICONV_MIME_DECODE_CONTINUE_ON_ERROR, 'UTF-8');
+        if ($decoded !== false) return $decoded;
+    }
+>>>>>>> Stashed changes
     return $str;
 }
 
 function cleanBody(string $body): string {
+<<<<<<< Updated upstream
     // Quitar partes MIME y boundaries
     $body = preg_replace('/--[a-zA-Z0-9_\-]+(\r?\n|$).*?--[a-zA-Z0-9_\-]+--/s', '', $body);
     // Quitar cabeceras de parte (Content-Type: etc dentro del body)
@@ -111,10 +146,26 @@ function formatMailDate(string $date): string {
         if ($diff < 604800) return date('D d/m', $ts);
         return date('d/m/Y', $ts);
     } catch (Exception $e) { return $date; }
+=======
+    $body = quoted_printable_decode($body);
+    $body = preg_replace('/^Content-[^\r\n]+(\r?\n)+/m', '', $body);
+    return trim(substr($body, 0, 4000));
+}
+
+function formatMailDate(string $date): string {
+    if ($date === '') return 'Sin fecha';
+    $ts = strtotime($date);
+    if (!$ts) return $date;
+    $diff = time() - $ts;
+    if ($diff < 86400) return date('H:i', $ts);
+    if ($diff < 604800) return date('D d/m', $ts);
+    return date('d/m/Y', $ts);
+>>>>>>> Stashed changes
 }
 
 function classifyTag(string $text): array {
     $text = strtolower($text);
+<<<<<<< Updated upstream
     if (str_contains($text, 'alert') || str_contains($text, 'alerta') || str_contains($text, 'intrusion') || str_contains($text, 'attack'))
         return ['class'=>'badge-danger', 'label'=>'ALERTA', 'icon'=>'fa-triangle-exclamation'];
     if (str_contains($text, 'warn') || str_contains($text, 'warning'))
@@ -171,10 +222,69 @@ function parseSnortAlerts(string $path, int $limit = 200): array {
 }
 
 function readLastLines(string $file, int $n): array {
+=======
+    if (str_contains($text, 'alert') || str_contains($text, 'alerta') || str_contains($text, 'intrusion') || str_contains($text, 'attack')) {
+        return ['class' => 'badge-danger', 'label' => 'ALERTA', 'icon' => 'fa-triangle-exclamation'];
+    }
+    if (str_contains($text, 'warn') || str_contains($text, 'warning')) {
+        return ['class' => 'badge-amber', 'label' => 'WARN', 'icon' => 'fa-circle-exclamation'];
+    }
+    if (str_contains($text, 'snort') || str_contains($text, 'ids') || str_contains($text, 'scan')) {
+        return ['class' => 'badge-sky', 'label' => 'IDS', 'icon' => 'fa-shield-virus'];
+    }
+    if (str_contains($text, 'wazuh') || str_contains($text, 'siem')) {
+        return ['class' => 'badge-amber', 'label' => 'SIEM', 'icon' => 'fa-magnifying-glass'];
+    }
+    return ['class' => 'badge-green', 'label' => 'INFO', 'icon' => 'fa-envelope'];
+}
+
+function parseMboxFile(string $path): array {
+    $content = safeReadFile($path);
+    if ($content === '') return [];
+
+    $rawMessages = preg_split('/^From /m', $content);
+    $messages = [];
+    $id = 1;
+
+    foreach ($rawMessages as $raw) {
+        $raw = trim($raw);
+        if ($raw === '') continue;
+
+        $parts = preg_split('/\r?\n\r?\n/', $raw, 2);
+        $headerBlock = $parts[0] ?? '';
+        $body = $parts[1] ?? '(sin contenido)';
+
+        $from = decodeMimeStr(extractHeader($headerBlock, 'From'));
+        $subject = decodeMimeStr(extractHeader($headerBlock, 'Subject'));
+        $date = extractHeader($headerBlock, 'Date');
+        $to = extractHeader($headerBlock, 'To');
+
+        $tag = classifyTag($subject . ' ' . $from);
+
+        $messages[] = [
+            'id' => $id++,
+            'from' => $from ?: 'desconocido@local',
+            'to' => $to ?: 'root@localhost',
+            'subject' => $subject ?: '(sin asunto)',
+            'date' => formatMailDate($date),
+            'tag' => $tag['class'],
+            'tagLabel' => $tag['label'],
+            'icon' => $tag['icon'],
+            'body' => nl2br(htmlspecialchars(cleanBody($body), ENT_QUOTES, 'UTF-8')),
+        ];
+    }
+
+    return array_reverse($messages);
+}
+
+function readLastLines(string $file, int $n): array {
+    if (!file_exists($file) || !is_readable($file)) return [];
+>>>>>>> Stashed changes
     $fp = fopen($file, 'r');
     if (!$fp) return [];
     fseek($fp, 0, SEEK_END);
     $size = ftell($fp);
+<<<<<<< Updated upstream
     $chunk = min($size, $n * 200);
     fseek($fp, -$chunk, SEEK_END);
     $data = fread($fp, $chunk);
@@ -220,6 +330,13 @@ function extractSnortSrc(string $line): string {
 function extractSnortDst(string $line): string {
     if (preg_match('/\->\s+([\d\.]+(?::\d+)?)/', $line, $m)) return trim($m[1]);
     return '';
+=======
+    $chunk = min($size, $n * 250);
+    fseek($fp, -$chunk, SEEK_END);
+    $data = fread($fp, $chunk);
+    fclose($fp);
+    return preg_split("/\r?\n/", $data);
+>>>>>>> Stashed changes
 }
 
 function priorityToSev(int $pri): string {
@@ -231,6 +348,7 @@ function priorityToSev(int $pri): string {
     };
 }
 
+<<<<<<< Updated upstream
 // ══════════════════════════════════════════════════════════════
 // SECCIÓN 3: CARGAR DATOS REALES
 // Ajusta las rutas según tu docker-compose (volúmenes montados)
@@ -601,5 +719,152 @@ function filterSnort(sev, btn){
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 </script>
+=======
+function parseSnortAlerts(string $path, int $limit = 100): array {
+    $lines = readLastLines($path, $limit * 5);
+    $logs = [];
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '') continue;
+        if (!preg_match('/^\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}/', $line)) continue;
+
+        $logs[] = [
+            'ts' => preg_match('/^(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2})/', $line, $m) ? date('Y') . '-' . str_replace(['/', '-'], ['-', ' '], $m[1]) : '',
+            'sev' => priorityToSev(preg_match('/\[Priority:\s*(\d+)\]/', $line, $p) ? (int)$p[1] : 3),
+            'cls' => preg_match('/\[Classification:\s*([^\]]+)\]/', $line, $c) ? trim($c[1]) : 'Unknown',
+            'src' => preg_match('/\}\s+([\d\.]+(?::\d+)?)\s*->/', $line, $s) ? trim($s[1]) : '',
+            'dst' => preg_match('/->\s+([\d\.]+(?::\d+)?)/', $line, $d) ? trim($d[1]) : '',
+            'proto' => preg_match('/\{(TCP|UDP|ICMP|GRE|IP)\}/', $line, $pr) ? $pr[1] : 'TCP',
+            'msg' => preg_match('/\[\*\*\]\s+(?:\[\d+:\d+:\d+\]\s+)?(.+?)\s+\[\*\*\]/', $line, $mm) ? trim($mm[1]) : 'Alerta Snort',
+        ];
+    }
+
+    return array_reverse(array_slice($logs, 0, $limit));
+}
+
+$mails = parseMboxFile($MAIL_MBOX_PATH);
+$snortLogs = parseSnortAlerts($SNORT_ALERT_PATH, 100);
+
+$unreadCount = count($mails);
+$alertCount = count(array_filter($snortLogs, fn($l) => in_array($l['sev'], ['HIGH', 'MEDIUM'], true)));
+
+include 'includes/header.php';
+?>
+
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Mail & Snort | CyberPYME</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background:#020617; color:#f8fafc; font-family:'Plus Jakarta Sans',sans-serif; overflow-x:hidden; }
+        body.light-mode { background:#f8fafc !important; color:#0f172a !important; }
+        .glass-panel { background:rgba(15,23,42,.7); border:1px solid rgba(255,255,255,.05); backdrop-filter:blur(12px); border-radius:1rem; }
+        body.light-mode .glass-panel { background:#fff; border:1px solid #e2e8f0; box-shadow:0 4px 15px rgba(0,0,0,.05); }
+        .badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:9999px;display:inline-flex;align-items:center;}
+        .badge-danger{background:rgba(239,68,68,.15);color:#ef4444;}
+        .badge-sky{background:rgba(14,165,233,.12);color:#0ea5e9;}
+        .badge-amber{background:rgba(245,158,11,.15);color:#f59e0b;}
+        .badge-green{background:rgba(16,185,129,.15);color:#10b981;}
+        .tab-btn.active{color:#0ea5e9;}
+        .mail-item.active{background:rgba(14,165,233,.07);border-left:2px solid #0ea5e9;}
+    </style>
+</head>
+<body>
+
+<div class="max-w-7xl mx-auto px-6 py-8">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+        <div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold mb-4 tracking-widest uppercase shadow-lg shadow-emerald-500/5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                SYSTEM ONLINE
+            </div>
+            <div class="text-sky-500 font-bold tracking-widest text-xs mb-1">SOC MAIL & SNORT</div>
+            <h2 class="text-4xl md:text-5xl font-black leading-tight tracking-tight text-white">
+                Auditoría <br><span class="text-sky-500 italic">Inteligente.</span>
+            </h2>
+            <p class="text-slate-400 text-sm mt-2 font-light">
+                Correos reales y alertas IDS en una sola consola.
+            </p>
+        </div>
+
+        <div class="glass-panel p-3 px-5 flex items-center gap-4 bg-slate-900/50">
+            <img src="<?php echo htmlspecialchars($avatarUrl); ?>" class="w-10 h-10 rounded-lg border border-sky-500/30" alt="Avatar">
+            <div class="flex flex-col">
+                <span class="text-xs font-black text-sky-400 uppercase tracking-wide"><?php echo htmlspecialchars($userName); ?></span>
+                <span class="text-[10px] text-slate-500 font-mono"><?php echo htmlspecialchars($userRole); ?></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="glass-panel p-5 border-l-4 border-l-sky-500">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Correos</p>
+            <p class="text-3xl font-black"><?php echo $unreadCount; ?></p>
+        </div>
+        <div class="glass-panel p-5 border-l-4 border-l-amber-500">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Alertas IDS</p>
+            <p class="text-3xl font-black text-amber-400"><?php echo $alertCount; ?></p>
+        </div>
+        <div class="glass-panel p-5 border-l-4 border-l-emerald-500">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Ruta Mail</p>
+            <p class="text-sm font-mono text-slate-300 break-all"><?php echo htmlspecialchars($MAIL_MBOX_PATH); ?></p>
+        </div>
+        <div class="glass-panel p-5 border-l-4 border-l-purple-500">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Ruta Snort</p>
+            <p class="text-sm font-mono text-slate-300 break-all"><?php echo htmlspecialchars($SNORT_ALERT_PATH); ?></p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="glass-panel p-5">
+            <h3 class="text-sm font-bold mb-4 text-sky-400">Bandeja</h3>
+            <?php if (empty($mails)): ?>
+                <p class="text-slate-500 text-sm">No se encontraron correos.</p>
+            <?php else: ?>
+                <?php foreach ($mails as $m): ?>
+                    <div class="mail-item border-b border-white/10 py-3">
+                        <div class="flex justify-between gap-4">
+                            <p class="text-sm font-semibold"><?php echo htmlspecialchars($m['from']); ?></p>
+                            <p class="text-[10px] text-slate-400"><?php echo htmlspecialchars($m['date']); ?></p>
+                        </div>
+                        <p class="text-xs text-slate-400"><?php echo htmlspecialchars($m['subject']); ?></p>
+                        <span class="badge <?php echo $m['tag']; ?> mt-2"><?php echo htmlspecialchars($m['tagLabel']); ?></span>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+
+        <div class="glass-panel p-5">
+            <h3 class="text-sm font-bold mb-4 text-amber-400">Snort</h3>
+            <?php if (empty($snortLogs)): ?>
+                <p class="text-slate-500 text-sm">No se encontraron alertas.</p>
+            <?php else: ?>
+                <?php foreach ($snortLogs as $l): ?>
+                    <div class="border-b border-white/10 py-3 text-xs font-mono">
+                        <div class="flex justify-between gap-4 mb-1">
+                            <span class="text-slate-400"><?php echo htmlspecialchars($l['ts']); ?></span>
+                            <span class="badge <?php echo $l['sev'] === 'HIGH' ? 'badge-danger' : ($l['sev'] === 'MEDIUM' ? 'badge-amber' : 'badge-green'); ?>">
+                                <?php echo htmlspecialchars($l['sev']); ?>
+                            </span>
+                        </div>
+                        <div class="text-slate-200"><?php echo htmlspecialchars($l['msg']); ?></div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<script src="assets/js/languages.js"></script>
+<script src="assets/js/main.js"></script>
+
+<?php include 'includes/footer.php'; ?>
+>>>>>>> Stashed changes
 </body>
 </html>

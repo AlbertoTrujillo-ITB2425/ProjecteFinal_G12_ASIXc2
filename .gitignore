@@ -7,3 +7,4 @@ node_modules/
 snort_logs/
 db_data/
 *.log
+ollama_data/

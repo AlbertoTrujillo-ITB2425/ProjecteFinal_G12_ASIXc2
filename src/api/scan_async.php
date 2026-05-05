@@ -1,49 +1,75 @@
 <?php
 header('Content-Type: application/json');
 
-$data = json_decode(file_get_contents('php://input'), true);
-$target = $data['target'] ?? '';
-$type = $data['action'] ?? 'quick';
+/**
+ * CYBERPYME SOC - Scan Engine v6.9.0
+ * Soporta GET y POST para máxima compatibilidad.
+ */
 
-// Validación
+// 1. Captura de datos (Soporta ambos métodos)
+$method = $_SERVER['REQUEST_METHOD'];
+if ($method === 'POST') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $target = $data['target'] ?? '';
+    $type = $data['type'] ?? $data['action'] ?? 'quick';
+} else {
+    $target = $_GET['target'] ?? '';
+    $type = $_GET['type'] ?? 'quick';
+}
+
+// 2. Validación Robusta (IP o Dominio)
+if (empty($target)) {
+    die(json_encode(["status" => "error", "message" => "Objetivo vacío"]));
+}
+
+// Regex que permite dominios locales (.cat, .local) e IPs
 if (!filter_var($target, FILTER_VALIDATE_IP) && !preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $target)) {
-    die(json_encode(["status" => "error", "message" => "Objetivo inválido"]));
+    die(json_encode(["status" => "error", "message" => "Objetivo inválido: " . $target]));
 }
 
 $output = "";
 
+// 3. Lógica Shodan
 if ($type === 'shodan') {
-    // 1. REAL SHODAN API (Desde el Backend)
     $apiKey = 'cTZNVRd5Qf4GOpq7TVUoe3K9TdMN1ubt';
+    // Resolver IP si es un dominio
     $ip = filter_var($target, FILTER_VALIDATE_IP) ? $target : gethostbyname($target);
     
     $url = "https://api.shodan.io/shodan/host/$ip?key=$apiKey";
-    $shodan_data = @file_get_contents($url);
+    
+    // Usar timeout para evitar bloqueos
+    $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+    $shodan_data = @file_get_contents($url, false, $ctx);
     
     if ($shodan_data) {
         $json = json_decode($shodan_data, true);
-        $ports = isset($json['ports']) ? implode(', ', $json['ports']) : 'Ninguno detectado';
+        $ports = isset($json['ports']) ? implode(', ', $json['ports']) : 'Ninguno';
         $vulns = isset($json['vulns']) ? count($json['vulns']) : 0;
         
-        $output .= "--- DATOS OSINT (SHODAN) ---\n";
+        $output .= "--- OSINT REPORT (SHODAN) ---\n";
         $output .= "IP: {$json['ip_str']}\n";
         $output .= "ORG: " . ($json['org'] ?? 'N/A') . "\n";
-        $output .= "OS: " . ($json['os'] ?? 'N/A') . "\n";
-        $output .= "Puertos: $ports\n";
-        $output .= "Vulnerabilidades: $vulns\n";
+        $output .= "Vulnerabilidades detectadas: $vulns\n";
+        $output .= "Puertos abiertos: $ports\n";
     } else {
-        die(json_encode(["status" => "error", "message" => "Shodan HTTP 403: API Key sin créditos o IP no registrada."]));
+        die(json_encode(["status" => "error", "message" => "Shodan: No hay datos o API Key sin créditos."]));
     }
 
 } else {
-    // 2. REAL NMAP (Ejecución Local)
-    $cmd = ($type === 'quick') ? "nmap -F -T4 " : "nmap -A -T4 ";
-    $output = shell_exec($cmd . escapeshellarg($target));
+    // 4. Lógica NMAP Real
+    // -F (Fast), -A (Aggressive/Vulnerability)
+    $cmd_base = ($type === 'quick') ? "nmap -F -T4 " : "nmap -A -T4 ";
+    $safe_target = escapeshellarg($target);
+    
+    // Ejecución y captura de errores
+    $output = shell_exec($cmd_base . $safe_target . " 2>&1");
     
     if (!$output) {
-        die(json_encode(["status" => "error", "message" => "Fallo al ejecutar Nmap. Asegúrate de tenerlo instalado en el servidor."]));
+        die(json_encode(["status" => "error", "message" => "Error de ejecución: Nmap no devolvió datos."]));
     }
 }
 
-echo json_encode(["status" => "success", "result" => $output]);
+// 5. Respuesta final (El JS espera el texto puro o el JSON dependiendo de tu fetch)
+// Para que tu scan.js actual funcione, devolvemos el resultado directamente
+echo $output; 
 ?>

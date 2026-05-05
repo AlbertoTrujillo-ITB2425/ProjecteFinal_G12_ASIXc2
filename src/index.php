@@ -1,9 +1,10 @@
 <?php
 /**
  * CYBERPYME SOC - Professional Edition v6.5.0
- * Engine: Optimizado, Libre de Bugs, Monitorización Real de Docker
+ * HUB Central de Operaciones G12
  */
 session_start();
+require_once 'db_conn.php'; 
 
 // Cabeceras de seguridad
 header("X-XSS-Protection: 1; mode=block");
@@ -13,266 +14,189 @@ header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 // Identidad del Auditor
 $isLoggedIn = isset($_SESSION['user_id']);
 $userName = $_SESSION['user_name'] ?? 'Auditor SOC';
-$userRole = $_SESSION['user_role'] ?? 'Analista Nivel 1';
+$userRole = $_SESSION['user_role'] ?? 'Analista G12';
 $avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($userName) . "&background=0ea5e9&color=fff&bold=true";
 
-// =========================================================================
-// MONITORIZACIÓN REAL DE INFRAESTRUCTURA (DOCKER)
-// =========================================================================
-
-// Función para comprobar si un puerto de un contenedor está abierto
-function checkContainer($host, $port, $timeout = 1) {
+/**
+ * MONITORIZACIÓN DE NODOS DOCKER
+ */
+function checkContainer($host, $port, $timeout = 0.5) {
+    $start = microtime(true);
     $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
+    $end = microtime(true);
     if ($fp) {
         fclose($fp);
-        return true;
+        return ['online' => true, 'latency' => round(($end - $start) * 1000, 2)];
     }
-    return false;
+    return ['online' => false, 'latency' => 0];
 }
 
-// Lista de contenedores reales de tu 'docker ps'
-$infrastructure = [
-    ['host' => 's1_nginx', 'port' => 80, 'name' => 'Nginx Reverse Proxy', 'os' => 'Alpine'],
-    ['host' => 's4_mariadb', 'port' => 3306, 'name' => 'MariaDB Database', 'os' => 'Debian'],
-    ['host' => 's5_redis', 'port' => 6379, 'name' => 'Redis Cache', 'os' => 'Alpine'],
-    ['host' => 's12_ollama', 'port' => 11434, 'name' => 'Ollama AI Engine', 'os' => 'Ubuntu'],
-    ['host' => 's8_grafana', 'port' => 3000, 'name' => 'Grafana Dashboards', 'os' => 'Alpine'],
-    ['host' => 's6_openldap', 'port' => 389, 'name' => 'OpenLDAP Auth', 'os' => 'Debian'],
-    ['host' => 's7_wazuh', 'port' => 55000, 'name' => 'Wazuh Manager', 'os' => 'CentOS'],
+$infrastructureList = [
+    ['host' => 's1_nginx',    'port' => 80,    'name' => 'Edge Proxy',      'os' => 'Alpine'],
+    ['host' => 's2_node',     'port' => 9000,  'name' => 'App Engine',      'os' => 'Alpine'],
+    ['host' => 's4_mariadb',  'port' => 3306,  'name' => 'SQL Master',      'os' => 'Debian'],
+    ['host' => 's7_wazuh',    'port' => 1514,  'name' => 'Wazuh SIEM',      'os' => 'CentOS'],
+    ['host' => 's12_ollama',  'port' => 11434, 'name' => 'AI Qwen2.5',      'os' => 'Ubuntu'],
 ];
 
 $activeNodesCount = 0;
 $nodeStatusList = [];
-
-foreach ($infrastructure as $node) {
-    $isOnline = checkContainer($node['host'], $node['port']);
-    if ($isOnline) $activeNodesCount++;
-    
-    $nodeStatusList[] = [
-        'name' => $node['name'],
-        'host' => $node['host'],
-        'os' => $node['os'],
-        'status' => $isOnline ? 'Online' : 'Offline',
-        'color' => $isOnline ? 'text-emerald-400' : 'text-red-500',
-        'icon' => $isOnline ? 'fa-check-circle' : 'fa-times-circle'
-    ];
+foreach ($infrastructureList as $node) {
+    $check = checkContainer($node['host'], $node['port']);
+    if ($check['online']) $activeNodesCount++;
+    $nodeStatusList[] = array_merge($node, $check);
 }
 
-$totalNodes = count($infrastructure);
-$sysHealth = $totalNodes > 0 ? round(($activeNodesCount / $totalNodes) * 100) : 0;
+// Estadísticas de Base de Datos
+try {
+    $totalUsers = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+    $totalScans = $pdo->query("SELECT COUNT(*) FROM scans")->fetchColumn();
+} catch (Exception $e) { $totalUsers = 0; $totalScans = 0; }
 
-// Para los logs y amenazas, idealmente aquí harías una consulta real a Wazuh o a tu base de datos.
-// Por ahora, dejamos valores placeholder si no hay conexión directa a la API de Wazuh implementada aún.
-$activeThreats = 0; // Aquí iría: wazuh_api_get_active_threats()
-$blockedIPs = 0;    // Aquí iría: snort_get_blocked_ips()
+$sysHealth = round(($activeNodesCount / count($infrastructureList)) * 100);
 ?>
 <!DOCTYPE html>
-<html lang="es" class="scroll-smooth">
+<html lang="es" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard SOC | CyberPYME G12</title>
-    
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
-    
+    <title>SOC HUB | G12 CyberPyme</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <style>
-        body.light-mode { background-color: #f8fafc !important; color: #0f172a !important; }
-        body.light-mode .text-white { color: #0f172a !important; }
-        body.light-mode .text-slate-400 { color: #475569 !important; }
-        
-        .glass-panel { 
-            background: rgba(15, 23, 42, 0.7); 
-            border: 1px solid rgba(255, 255, 255, 0.05); 
-            backdrop-filter: blur(12px); 
-            border-radius: 1rem; 
-            transition: transform 0.2s ease, border-color 0.2s ease;
-        }
-        body.light-mode .glass-panel { 
-            background: #ffffff; 
-            border: 1px solid #e2e8f0; 
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); 
-        }
-        
-        .glass-panel:hover { border-color: rgba(14, 165, 233, 0.3); }
-        .bg-glow { background: radial-gradient(circle at 50% -20%, rgba(14, 165, 233, 0.15) 0%, transparent 60%); }
-        
-        @keyframes scanline {
-            0% { transform: translateY(-100%); }
-            100% { transform: translateY(100%); }
-        }
-        .scanner-line {
-            position: absolute; top: 0; left: 0; width: 100%; height: 2px;
-            background: linear-gradient(to right, transparent, #0ea5e9, transparent);
-            animation: scanline 2s linear infinite; opacity: 0.5;
-        }
+        body { background-color: #020617; font-family: 'Inter', sans-serif; }
+        .glass-panel { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .tool-card:hover { border-color: #0ea5e9; transform: translateY(-4px); }
+        .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     </style>
 </head>
-<body class="min-h-screen flex flex-col transition-colors duration-300 bg-slate-950 text-white relative overflow-x-hidden">
+<body class="text-slate-300 min-h-screen flex flex-col">
 
-    <div class="fixed inset-0 pointer-events-none opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')]"></div>
-    <div class="bg-glow fixed inset-0 pointer-events-none z-0"></div>
+    <?php include 'includes/header.php'; ?>
 
-    <div class="relative z-[100] w-full">
-        <?php include 'includes/header.php'; ?>
-    </div>
-
-    <main class="max-w-7xl mx-auto px-6 py-8 flex-grow flex flex-col relative z-10 w-full">
+    <main class="max-w-7xl mx-auto px-6 py-10 w-full flex-grow">
         
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
             <div>
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold mb-4 tracking-widest uppercase shadow-lg shadow-emerald-500/5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    SYSTEM ONLINE
-                </div>
-                <div class="text-sky-500 font-bold tracking-widest text-xs mb-1" data-i18n="hero_tag">G12 NEXT-GEN SOC</div>
-                <h2 class="text-4xl md:text-5xl font-black leading-tight tracking-tight text-white" data-i18n="hero_title">
-                    Auditoría <br><span class="text-sky-500 italic">Inteligente.</span>
-                </h2>
-                <p class="text-slate-400 text-sm mt-2 font-light" data-i18n="hero_desc">
-                    Defensa proactiva y monitorización de activos potenciada por AI-Engine Qwen2.5.
-                </p>
+                <h1 class="text-4xl font-black text-white tracking-tighter uppercase">Security <span class="text-sky-500">Operations</span> Center</h1>
+                <p class="text-slate-500 mt-1 tracking-widest text-xs font-bold uppercase">Consola de Mando G12 Next-Gen</p>
             </div>
+            <div class="flex gap-4">
+                <div class="glass-panel px-6 py-3 rounded-2xl text-center">
+                    <p class="text-[10px] font-black text-sky-500 uppercase">Salud Sistema</p>
+                    <p class="text-xl font-bold text-white"><?= $sysHealth ?>%</p>
+                </div>
+                <div class="glass-panel px-6 py-3 rounded-2xl text-center">
+                    <p class="text-[10px] font-black text-emerald-500 uppercase">Auditores</p>
+                    <p class="text-xl font-bold text-white"><?= $totalUsers ?></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             
-            <?php if ($isLoggedIn): ?>
-            <div class="glass-panel p-3 px-5 flex items-center gap-4 bg-slate-900/50">
-                <img src="<?php echo $avatarUrl; ?>" class="w-10 h-10 rounded-lg border border-sky-500/30" alt="Avatar">
-                <div class="flex flex-col">
-                    <span class="text-xs font-black text-sky-400 uppercase tracking-wide"><?php echo htmlspecialchars($userName); ?></span>
-                    <span class="text-[10px] text-slate-500 font-mono"><?php echo $userRole; ?> | ID: #<?php echo $_SESSION['user_id'] ?? '001'; ?></span>
+            <a href="scanner.php" class="glass-panel p-6 tool-card transition-all group">
+                <div class="w-12 h-12 bg-sky-500/10 rounded-xl flex items-center justify-center mb-4 border border-sky-500/20 group-hover:bg-sky-500 group-hover:text-white transition-colors">
+                    <i class="fas fa-radar text-xl"></i>
                 </div>
-            </div>
-            <?php endif; ?>
+                <h3 class="text-white font-bold uppercase text-sm mb-2" data-i18n="card_audit_title">Audit Engine</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Escaneo de vulnerabilidades Nmap y mapeo de red en tiempo real.</p>
+            </a>
+
+            <a href="forensics.php" class="glass-panel p-6 tool-card transition-all group border-l-purple-500/30">
+                <div class="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-4 border border-purple-500/20 group-hover:bg-purple-500 group-hover:text-white transition-colors text-purple-400">
+                    <i class="fas fa-fingerprint text-xl"></i>
+                </div>
+                <h3 class="text-white font-bold uppercase text-sm mb-2">Digital Forensics</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Investigación de incidentes y análisis de logs de seguridad avanzados.</p>
+            </a>
+
+            <a href="utils.php" class="glass-panel p-6 tool-card transition-all group border-l-emerald-500/30">
+                <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 border border-emerald-500/20 group-hover:bg-emerald-500 group-hover:text-white transition-colors text-emerald-400">
+                    <i class="fas fa-robot text-xl"></i>
+                </div>
+                <h3 class="text-white font-bold uppercase text-sm mb-2">AI Cyber Assistant</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Soporte mediante LLM Qwen2.5 para triaje de amenazas y payloads.</p>
+            </a>
+
+            <a href="socemail.php" class="glass-panel p-6 tool-card transition-all group border-l-amber-500/30">
+                <div class="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center mb-4 border border-amber-500/20 group-hover:bg-amber-500 group-hover:text-white transition-colors text-amber-400">
+                    <i class="fas fa-envelope-open-text text-xl"></i>
+                </div>
+                <h3 class="text-white font-bold uppercase text-sm mb-2">Secure Mail</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Gestión de alertas y comunicaciones cifradas del centro de seguridad.</p>
+            </a>
+
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 relative z-20">
-            <div class="glass-panel p-5 border-l-4 border-l-sky-500 relative overflow-hidden">
-                <i class="fas fa-network-wired absolute right-[-10px] bottom-[-10px] text-5xl opacity-5 text-sky-500"></i>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Nodos Activos</p>
-                <p class="text-3xl font-black"><?php echo $activeNodesCount; ?>/<?php echo $totalNodes; ?></p>
-            </div>
-            <div class="glass-panel p-5 border-l-4 border-l-red-500 relative overflow-hidden">
-                <i class="fas fa-bug absolute right-[-10px] bottom-[-10px] text-5xl opacity-5 text-red-500"></i>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Amenazas Críticas</p>
-                <p class="text-3xl font-black text-red-400"><?php echo $activeThreats; ?></p>
-            </div>
-            <div class="glass-panel p-5 border-l-4 border-l-amber-500 relative overflow-hidden">
-                <i class="fas fa-shield-halved absolute right-[-10px] bottom-[-10px] text-5xl opacity-5 text-amber-500"></i>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Ataques Bloqueados</p>
-                <p class="text-3xl font-black text-amber-400"><?php echo $blockedIPs; ?></p>
-            </div>
-            <div class="glass-panel p-5 border-l-4 border-l-emerald-500 relative overflow-hidden">
-                <i class="fas fa-heartbeat absolute right-[-10px] bottom-[-10px] text-5xl opacity-5 text-emerald-500"></i>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1" data-i18n="status_health">Salud Red</p>
-                <p class="text-3xl font-black text-emerald-400"><?php echo $sysHealth; ?>%</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-20"> 
-            <div class="lg:col-span-2 flex flex-col gap-6">
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="glass-panel p-8 group relative overflow-hidden flex flex-col pointer-events-auto">
-                        <div class="scanner-line hidden group-hover:block pointer-events-none"></div>
-                        <div class="w-12 h-12 bg-sky-500/10 rounded-xl flex items-center justify-center border border-sky-500/20 mb-4 group-hover:bg-sky-500/20 transition-colors">
-                            <i class="fas fa-radar text-sky-400 text-xl group-hover:animate-pulse"></i>
-                        </div>
-                        <h3 class="text-lg font-bold mb-2 uppercase tracking-tight" data-i18n="card_audit_title">Audit Engine</h3>
-                        <p class="text-slate-500 text-sm mb-6 flex-grow" data-i18n="card_audit_desc">Mapeo de red Nmap y análisis de vulnerabilidades CVE automatizado.</p>
-                        
-                        <a href="scanner.php" class="w-full py-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs uppercase tracking-widest transition-all flex justify-center items-center gap-2 shadow-lg shadow-sky-600/20 cursor-pointer text-center">
-                            <i class="fas fa-rocket"></i> <span data-i18n="card_audit_btn">Iniciar Escáner</span>
-                        </a>
-                    </div>
-
-                    <div class="glass-panel p-8 group flex flex-col pointer-events-auto">
-                        <div class="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20 mb-4 group-hover:bg-amber-500/20 transition-colors">
-                            <i class="fas fa-brain text-amber-400 text-xl group-hover:scale-110 transition-transform"></i>
-                        </div>
-                        <h3 class="text-lg font-bold mb-2 uppercase tracking-tight" data-i18n="card_threat_title">Threat Intel</h3>
-                        <p class="text-slate-500 text-sm mb-6 flex-grow" data-i18n="card_threat_desc">Detección de intrusiones y monitorización de tráfico en tiempo real.</p>
-                        
-                        <a href="http://<?php echo $_SERVER['SERVER_NAME']; ?>:3000" target="_blank" class="w-full py-3 rounded-lg bg-slate-800 border border-amber-500/30 hover:bg-slate-700 text-amber-400 font-bold text-xs uppercase tracking-widest transition-all flex justify-center items-center gap-2 cursor-pointer text-center">
-                            <i class="fas fa-terminal"></i> <span data-i18n="card_threat_btn">Monitor Grafana</span>
-                        </a>
-                    </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="lg:col-span-2 glass-panel p-8 rounded-[2rem]">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-black text-white uppercase tracking-tighter"><i class="fas fa-server mr-3 text-sky-500"></i>Estado de Infraestructura</h2>
+                    <span class="text-[10px] bg-sky-500/10 text-sky-400 px-3 py-1 rounded-full border border-sky-500/20 font-mono">12 NODOS TOTALES</span>
                 </div>
-
-                <div class="glass-panel p-6 pointer-events-auto">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest"><i class="fas fa-server mr-2"></i>Nodos Docker Monitorizados</h3>
-                        <span class="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded border border-emerald-500/30">Live Sync</span>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm text-slate-400">
-                            <thead class="text-[10px] uppercase bg-white/5 border-b border-white/10">
-                                <tr>
-                                    <th class="px-4 py-2">Hostname</th>
-                                    <th class="px-4 py-2">Servicio</th>
-                                    <th class="px-4 py-2">OS</th>
-                                    <th class="px-4 py-2 text-right">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-xs font-mono">
-                                <?php foreach ($nodeStatusList as $node): ?>
-                                <tr class="border-b border-white/5 hover:bg-white/5">
-                                    <td class="px-4 py-3 text-white"><?php echo $node['host']; ?></td>
-                                    <td class="px-4 py-3"><?php echo $node['name']; ?></td>
-                                    <td class="px-4 py-3"><i class="fab fa-linux text-slate-500 mr-1"></i> <?php echo $node['os']; ?></td>
-                                    <td class="px-4 py-3 text-right <?php echo $node['color']; ?>"><i class="fas <?php echo $node['icon']; ?> text-[10px] mr-1"></i><?php echo $node['status']; ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-
-            <div class="flex flex-col gap-6">
-                
-                <div class="glass-panel p-6 pointer-events-auto">
-                    <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-5 border-b border-white/5 pb-2">Recursos SOC</h3>
-                    
-                    <div class="mb-4">
-                        <div class="flex justify-between text-xs mb-1">
-                            <span>Sys Health Index</span>
-                            <span class="text-sky-400 font-mono"><?php echo $sysHealth; ?>%</span>
-                        </div>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5">
-                            <div class="bg-sky-500 h-1.5 rounded-full transition-all duration-1000" style="width: <?php echo $sysHealth; ?>%"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="glass-panel p-6 flex-grow flex flex-col pointer-events-auto">
-                    <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2">Log de Eventos (Simulado)</h3>
-                    
-                    <ul class="space-y-4 flex-grow">
-                        <li class="flex items-start gap-3">
-                            <div class="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20 mt-0.5">
-                                <i class="fas fa-check text-emerald-400 text-[10px]"></i>
-                            </div>
+                <div class="space-y-3">
+                    <?php foreach ($nodeStatusList as $node): ?>
+                    <div class="flex items-center justify-between p-4 bg-slate-900/40 rounded-xl border border-white/5">
+                        <div class="flex items-center gap-4">
+                            <div class="w-2 h-2 rounded-full <?= $node['online'] ? 'bg-emerald-500 status-pulse' : 'bg-red-500' ?>"></div>
                             <div>
-                                <p class="text-xs text-white">Docker Network Check</p>
-                                <p class="text-[9px] text-slate-500 font-mono">Justo ahora • Escaneo interno</p>
+                                <p class="text-xs font-bold text-white uppercase"><?= $node['name'] ?></p>
+                                <p class="text-[10px] text-slate-500 font-mono"><?= $node['host'] ?> (<?= $node['os'] ?>)</p>
                             </div>
-                        </li>
-                    </ul>
-                    
-                    <a href="http://<?php echo $_SERVER['SERVER_NAME']; ?>:3000" target="_blank" class="w-full mt-4 py-2 border border-white/10 rounded text-[10px] uppercase font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer text-center block">
-                        Ver Todos los Logs en Grafana
-                    </a>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] font-black <?= $node['online'] ? 'text-emerald-400' : 'text-red-500' ?>"><?= $node['online'] ? 'ACTIVO' : 'DOWN' ?></p>
+                            <p class="text-[10px] text-slate-600 font-mono"><?= $node['latency'] ?> ms</p>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <a href="http://<?= $_SERVER['SERVER_NAME'] ?>:3000" target="_blank" class="block w-full mt-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-center text-[10px] font-black uppercase tracking-widest transition-all">
+                    Abrir Monitor Completo (Grafana)
+                </a>
+            </div>
+
+            <div class="space-y-6">
+                <div class="glass-panel p-8 rounded-[2rem] text-center">
+                    <img src="<?= $avatarUrl ?>" class="w-20 h-20 rounded-2xl mx-auto border-2 border-sky-500/20 mb-4 shadow-xl">
+                    <h3 class="text-white font-bold uppercase"><?= $userName ?></h3>
+                    <p class="text-[10px] text-sky-500 font-black mb-6"><?= $userRole ?></p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <a href="profile.php" class="py-2 bg-sky-500/10 hover:bg-sky-500 text-sky-500 hover:text-white rounded-lg text-[9px] font-black uppercase transition-all border border-sky-500/20">Ajustes</a>
+                        <a href="logout.php" class="py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase transition-all border border-red-500/20">Salir</a>
+                    </div>
                 </div>
 
+                <div class="glass-panel p-6 rounded-[2.5rem]">
+                    <h4 class="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Utilidades de Sistema</h4>
+                    <div class="space-y-2">
+                        <a href="test_env.php" class="flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl transition-all group">
+                            <i class="fas fa-vial text-slate-500 group-hover:text-sky-400 text-xs"></i>
+                            <span class="text-[11px] font-bold">Diagnóstico Entorno</span>
+                        </a>
+                        <a href="translator.php" class="flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl transition-all group">
+                            <i class="fas fa-language text-slate-500 group-hover:text-emerald-400 text-xs"></i>
+                            <span class="text-[11px] font-bold">Gestor Traducciones</span>
+                        </a>
+                        <a href="reset_password.php" class="flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl transition-all group">
+                            <i class="fas fa-key text-slate-500 group-hover:text-amber-400 text-xs"></i>
+                            <span class="text-[11px] font-bold">Seguridad Credenciales</span>
+                        </a>
+                    </div>
+                </div>
             </div>
+
         </div>
     </main>
 
+    <footer class="py-8 border-t border-white/5 text-center">
+        <p class="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]" data-i18n="footer_rights">© 2026 CYBERPYME SOC G12. ASEGURANDO EL FUTURO.</p>
+    </footer>
+
     <script src="assets/js/languages.js"></script>
     <script src="assets/js/main.js"></script>
-    
 </body>
 </html>

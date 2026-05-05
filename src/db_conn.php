@@ -1,19 +1,14 @@
 <?php
-
-$host = getenv('DB_HOST') ?: 's4_mariadb';
-$db   = getenv('DB_NAME') ?: 'cyberaudit';
-$user = getenv('DB_USER') ?: 'cyberuser';
-$pass = getenv('DB_PASSWORD') ?: 'superpassword';
+// db_conn.php - Sincronizado con .env
+$host = 's4_mariadb';
+$db   = 'cyberaudit';      // Coincide con tu .env
+$user = 'cyberuser';       // Coincide con tu .env
+$pass = 'superpassword';   // Coincide con tu .env
 
 try {
-    $pdo = new PDO(
-        "mysql:host=$host;dbname=$db;charset=utf8mb4",
-        $user,
-        $pass
-    );
-
+    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    die("❌ DB CONNECTION ERROR: " . $e->getMessage());
+    die("❌ Error de conexión: " . $e->getMessage());
 }
