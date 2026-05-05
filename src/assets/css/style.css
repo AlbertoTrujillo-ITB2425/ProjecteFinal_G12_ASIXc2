@@ -127,3 +127,20 @@ font { background-color: transparent !important; box-shadow: none !important; co
     box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); 
 }
 .lang-container:hover .lang-dropdown { visibility: visible; opacity: 1; transform: translateY(0); }
+
+/* --- DROPDOWN DE USUARIO --- */
+.user-menu .dropdown {
+    background: var(--dropdown-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all .25s ease;
+}
+
+.user-menu:hover .dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}

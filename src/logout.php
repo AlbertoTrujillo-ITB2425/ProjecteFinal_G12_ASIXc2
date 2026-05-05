@@ -30,5 +30,5 @@ session_destroy();
 /* =========================
    REDIRECCIÓN
 ========================= */
-header("Location: login.php");
+header("Location: auth.php");
 exit;

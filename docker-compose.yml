@@ -155,8 +155,14 @@ services:
     container_name: s12_ollama
     volumes:
         - ./ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"  # <--- ESTO PERMITE QUE EL NAVEGADOR ACCEDA
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=* # <--- ESTO EVITA BLOQUEOS DE NAVEGADOR (CORS)
     networks:
       - net_private
+      - net_public   # <--- AÑADE ESTO SI NGINX NECESITA VERLO TAMBIÉN
     restart: always
 
 networks:
