@@ -8,3 +8,4 @@ snort_logs/
 db_data/
 *.log
 ollama_data/
+ollama_data/
