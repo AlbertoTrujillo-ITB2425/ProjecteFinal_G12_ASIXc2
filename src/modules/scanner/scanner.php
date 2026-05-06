@@ -28,7 +28,6 @@ if (!isset($_SESSION['user_id'])) {
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-    <!-- Enlace al CSS global del proyecto -->
     <link rel="stylesheet" href="../../assets/css/style.css">
 
     <style>
@@ -94,7 +93,6 @@ if (!isset($_SESSION['user_id'])) {
 
             <div class="lg:col-span-4 space-y-6">
 
-                <!-- Panel de Controles -->
                 <div class="bg-glass border-t-2 border-t-blue-500 border-x border-b border-glass rounded-2xl shadow-xl p-8">
                     <h3 class="text-[10px] font-black mb-8 text-blue-400 uppercase tracking-[0.3em] flex items-center gap-3">
                         <i class="fas fa-microchip text-xs"></i> <span data-i18n="audit_params">Audit Parameters</span>
@@ -133,7 +131,6 @@ if (!isset($_SESSION['user_id'])) {
                     </div>
                 </div>
 
-                <!-- Threat Intel Score -->
                 <div id="threat-intel" class="hidden bg-red-950/20 border border-red-500/20 rounded-2xl p-8 animate-fade-in shadow-lg">
                     <div class="flex justify-between items-center mb-6">
                         <h4 class="text-[9px] font-black text-red-400 uppercase tracking-widest" data-i18n="risk_level">Risk Level</h4>
@@ -148,7 +145,6 @@ if (!isset($_SESSION['user_id'])) {
                     </div>
                 </div>
 
-                <!-- Botón PDF -->
                 <button id="btn-pdf" onclick="exportToPDF()" disabled
                     class="w-full p-5 flex items-center justify-center gap-3 text-muted border-2 border-dashed border-glass rounded-2xl transition-all cursor-not-allowed uppercase font-black text-[10px] tracking-widest bg-glass">
                     <i class="fas fa-file-contract"></i> <span data-i18n="gen_pdf">Generate Technical PDF</span>
@@ -157,7 +153,6 @@ if (!isset($_SESSION['user_id'])) {
 
             <div class="lg:col-span-8 flex flex-col gap-6">
 
-                <!-- Output IA -->
                 <div id="ai-preview-container" class="hidden animate-fade-in">
                     <div class="bg-blue-900/10 border border-blue-500/30 rounded-2xl p-6 ai-glow backdrop-blur-md">
                         <div class="flex justify-between items-center mb-4">
@@ -170,7 +165,6 @@ if (!isset($_SESSION['user_id'])) {
                     </div>
                 </div>
 
-                <!-- Consola Terminal -->
                 <div id="output-wrapper" class="flex-grow flex flex-col bg-glass border border-glass rounded-3xl overflow-hidden shadow-2xl min-h-[500px]">
                     <div class="bg-nav px-8 py-4 border-b border-glass flex justify-between items-center">
                         <div class="flex items-center gap-6">
@@ -194,11 +188,7 @@ if (!isset($_SESSION['user_id'])) {
         </div>
     </main>
 
-    <!--
-        PLANTILLA PDF DE 4 PÁGINAS (NO TOCAR)
-    -->
     <div id="pdf-template" class="hidden">
-        <!-- PÁGINA 1: INFORMACIÓN GENERAL -->
         <div class="pdf-page">
             <div class="pdf-header">
                 <div>
@@ -241,7 +231,6 @@ if (!isset($_SESSION['user_id'])) {
             <div class="pdf-footer">Documento Confidencial - Página 1 de 4</div>
         </div>
 
-        <!-- PÁGINA 2: REGISTROS Y FORTALEZAS -->
         <div class="pdf-page page-break">
             <div class="pdf-header">
                 <div><h1 class="pdf-title">REPORTE DE AUDITORIA</h1><div class="pdf-subtitle">SEGURIDAD INFRAESTRUCTURA Y RED</div></div>
@@ -258,7 +247,6 @@ if (!isset($_SESSION['user_id'])) {
             <div class="pdf-footer">Documento Confidencial - Página 2 de 4</div>
         </div>
 
-        <!-- PÁGINA 3: HALLAZGOS Y DATOS TÉCNICOS -->
         <div class="pdf-page page-break">
             <div class="pdf-header">
                 <div><h1 class="pdf-title">REPORTE DE AUDITORIA</h1><div class="pdf-subtitle">SEGURIDAD INFRAESTRUCTURA Y RED</div></div>
@@ -273,7 +261,6 @@ if (!isset($_SESSION['user_id'])) {
             <div class="pdf-footer">Documento Confidencial - Página 3 de 4</div>
         </div>
 
-        <!-- PÁGINA 4: CONCLUSIONES E IA -->
         <div class="pdf-page page-break">
             <div class="pdf-header">
                 <div><h1 class="pdf-title">REPORTE DE AUDITORIA</h1><div class="pdf-subtitle">SEGURIDAD INFRAESTRUCTURA Y RED</div></div>
@@ -291,13 +278,12 @@ if (!isset($_SESSION['user_id'])) {
         CYBERPYME SOC &copy; 2026 | ALL RIGHTS RESERVED
     </footer>
 
-    <!-- Rutas JS corregidas al root -->
     <script src="../../assets/js/languages.js"></script>
     <script src="../../assets/js/main.js"></script>
     
     <script>
         /**
-         * Lógica del Escáner SOC v6.7.0
+         * Lógica del Escáner SOC v6.7.0 - Optimización Anti-Bloqueo
          */
         window.currentAIReport = "";
         let cleanLogForAI = "";
@@ -359,7 +345,6 @@ if (!isset($_SESSION['user_id'])) {
                 appendLog(`\n[SYSTEM] Lanzando auditoría sobre: ${host}...`);
 
                 try {
-                    // Ruta API corregida para apuntar al root (../../api/)
                     const response = await fetch(`../../api/scan_async.php?target=${host}&type=${type}`);
                     const result = await response.text();
 
@@ -367,7 +352,10 @@ if (!isset($_SESSION['user_id'])) {
                         appendLog(`[ERROR] ${host}: Objetivo no aceptado por el servidor.`, true);
                     } else {
                         appendLog(result);
-                        const relevant = result.split('\n').filter(l => l.includes('open') || l.includes('vulnerable') || l.includes('Nmap scan')).join('\n');
+                        // Filtramos líneas relevantes para no saturar el contexto de la IA posteriormente
+                        const relevant = result.split('\n').filter(l => 
+                            l.includes('open') || l.includes('vulnerable') || l.includes('Nmap scan')
+                        ).join('\n');
                         cleanLogForAI += `\nHOST: ${host}\n${relevant}\n`;
                     }
                 } catch (err) {
@@ -375,7 +363,8 @@ if (!isset($_SESSION['user_id'])) {
                 }
             }
 
-            if (cleanLogForAI.length > 10) {
+            // --- DISPARADOR DE IA ---
+            if (cleanLogForAI.trim().length > 10) {
                 await requestAIAnalysis(cleanLogForAI);
             } else {
                 appendLog("\n[WARN] No se detectaron datos relevantes para el análisis IA.", true);
@@ -387,41 +376,67 @@ if (!isset($_SESSION['user_id'])) {
             document.getElementById('scan-progress').classList.add('hidden');
         }
 
+        /**
+         * NUEVA LÓGICA: Petición IA con protección de tiempo
+         */
         async function requestAIAnalysis(data) {
             const aiContainer = document.getElementById('ai-preview-container');
             const aiText = document.getElementById('ai-live-text');
             const pdfBtn = document.getElementById('btn-pdf');
+            const threatIntel = document.getElementById('threat-intel');
 
             aiContainer.classList.remove('hidden');
-            aiText.innerHTML = `<span class="status-pulse">Invocando Qwen2.5-Mini para análisis de vulnerabilidades...</span>`;
-            appendLog("\n[AI] Analizando vectores de ataque...");
+            aiText.innerHTML = `<span class="status-pulse text-blue-400">🧠 Generando Inteligencia de Amenazas (Max 30s)...</span>`;
+            appendLog("\n[AI] Analizando vectores de ataque con Qwen2.5...");
+
+            // Creamos un controlador de aborto para el timeout en el lado del cliente también
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s de gracia
 
             try {
-                // Ruta API corregida al root
                 const response = await fetch('../../api/ai_analysis.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ scan_data: data })
+                    body: JSON.stringify({ scan_data: data }),
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
                 const json = await response.json();
 
+                // Manejo de respuesta (Success o Warning del PHP)
                 if (json.response) {
                     window.currentAIReport = json.response;
                     aiText.innerHTML = json.response.replace(/\n/g, '<br>');
 
-                    document.getElementById('threat-intel').classList.remove('hidden');
-                    const score = json.response.toLowerCase().includes('crítica') || json.response.toLowerCase().includes('high') ? 85 : 35;
+                    // Mostrar Score basado en la respuesta
+                    threatIntel.classList.remove('hidden');
+                    const isCritical = /crítica|peligro|alto|critical|high|vulnerable/i.test(json.response);
+                    const score = isCritical ? 85 : 30;
+                    
                     document.getElementById('score-val').innerHTML = `${score}<span class="text-xs text-muted">/100</span>`;
                     document.getElementById('score-bar').style.width = score + "%";
+                    document.getElementById('score-bar').className = `h-full transition-all duration-1000 ${score > 70 ? 'bg-red-500' : 'bg-amber-500'}`;
 
+                    // Habilitar PDF con estilo activo
                     pdfBtn.disabled = false;
                     pdfBtn.className = "w-full p-5 flex items-center justify-center gap-3 text-blue-400 border-2 border-blue-500/50 rounded-2xl transition-all cursor-pointer bg-blue-900/10 ai-glow font-black text-[10px] tracking-widest";
 
-                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                    if(score > 70) confetti({ particleCount: 100, spread: 70, origin: { y: 0.8 }, colors: ['#ef4444', '#ffffff'] });
                 }
             } catch (err) {
-                aiText.innerHTML = `<span class="text-red-400">Error de conexión con el motor IA de Ollama.</span>`;
+                // Si el controlador abortó o hubo error de red
+                const msg = err.name === 'AbortError' 
+                    ? "⚠️ Tiempo excedido: Ollama está procesando demasiada carga. Revise el log manual." 
+                    : "⚠️ Error de enlace: No se pudo contactar con el motor IA.";
+                
+                aiText.innerHTML = `<span class="text-amber-400 italic">${msg}</span>`;
+                window.currentAIReport = "Análisis automático no disponible temporalmente. Reporte basado en logs técnicos.";
+                
+                // Aun así permitimos el PDF pero con el aviso
+                pdfBtn.disabled = false;
+                pdfBtn.classList.replace('text-muted', 'text-amber-400');
+                pdfBtn.style.cursor = "pointer";
             }
         }
 
@@ -453,7 +468,7 @@ if (!isset($_SESSION['user_id'])) {
             });
             if(tbody.innerHTML === "") {
                  const tr = document.createElement('tr');
-                 tr.innerHTML = `<td colspan="4" style="white-space: pre-wrap; font-family: monospace;">${logs.replace(/</g, '&lt;')}</td>`;
+                 tr.innerHTML = `<td colspan="4" style="white-space: pre-wrap; font-family: monospace;">${logs.substring(0, 1000).replace(/</g, '&lt;')}...</td>`;
                  tbody.appendChild(tr);
             }
 
