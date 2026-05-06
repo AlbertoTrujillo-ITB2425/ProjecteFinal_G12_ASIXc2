@@ -8,7 +8,7 @@
 [![Status](https://img.shields.io/badge/status-production-success.svg)]()
 
 > **Final Degree Project - Network Computer Systems Administration (ASIR)**  
-> Institut Tecnològic de Barcelona - Academic Year 2024/2025
+> Institut Tecnològic de Barcelona - Academic Year 2025/2026
 
 ---
 
@@ -213,7 +213,7 @@ See [LICENSE](./LICENSE) for details.
 
 **EURC** • **USDC** • **Solana Network** — *Fast • Secure • Low Fees*
 
-**Made with ❤️ by Group 7** — Alberto Trujillo • Joel Muñoz • Luka Ukleba  
+**Made by Group 7** — Alberto Trujillo • Joel Muñoz • Luka Ukleba  
 **Institut Tecnològic de Barcelona - 2026**
 
 [![GitHub](https://img.shields.io/github/stars/AlbertoTrujillo-ITB2425/ProjecteFinal_G7?style=social)](https://github.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7)
