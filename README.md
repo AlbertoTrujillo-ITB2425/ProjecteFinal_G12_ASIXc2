@@ -160,10 +160,10 @@ ProjecteFinal_G7/
 
 ## 🎓 Academic Context
 
-**Institution**: Institut Tecnològic de Barcelona (ITB)  
+**Institution**: Institut Tecnològic de Barcelona  
 **Program**: ASIR — Network Computer Systems Administration  
-**Type**: Final Degree Project (Proyecto Final de Ciclo)  
-**Defense**: June 27, 2026  
+**Type**: Final Degree Project 
+**Defense**: May 18, 2026  
 
 **Modules Demonstrated**: OS Implementation, Network Administration, Security & High Availability, Web Services, Database Management, IT Security, Enterprise Deployment
 
@@ -184,7 +184,7 @@ ProjecteFinal_G7/
 | Audience | Contact |
 |---------|---------|
 | **Customers** | support@cyberaudit.local (< 24h response, ES/EN) |
-| **ITB Professors** | alberto.trujillo.7e6@itb.cat · [Demo](https://demo.cyberaudit.local) |
+| **ITB Professors** | alberto.trujillo.7e6@itb.cat · [Demo](https://cyberpyme.free.nf/l) |
 | **Developers** | [GitHub Issues](https://github.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/issues) |
 
 ---
@@ -209,7 +209,7 @@ See [LICENSE](./LICENSE) for details.
 
 ## 🚀 Protecting Small Businesses in the Digital Age
 
-[🏠 Website](http://cyberaudit.local) • [🎮 Demo](http://demo.cyberaudit.local) • [📚 Docs](http://docs.cyberaudit.local)
+[🏠 Website](https://cyberpyme.es) • [🎮 Demo](https://cyberpyme.free.nf/) • [📚 Docs](./docs)
 
 **EURC** • **USDC** • **Solana Network** — *Fast • Secure • Low Fees*
 
