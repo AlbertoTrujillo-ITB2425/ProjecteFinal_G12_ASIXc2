@@ -1,0 +1,7 @@
+dn: ou=users,dc=g7,dc=local
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,dc=g7,dc=local
+objectClass: organizationalUnit
+ou: groups
