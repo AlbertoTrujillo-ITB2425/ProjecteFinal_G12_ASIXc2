@@ -1,11 +1,28 @@
+# --- SEGURIDAD CRÍTICA ---
 .env
+temp_certbot/
+certbot/
+/etc/letsencrypt/
+*.pem
+*.key
+
+# --- PERSISTENCIA DE DATOS (DOCKER) ---
 db_data/
 ldap_data/
 ldap_config/
 redis_data/
-node_modules/
-snort_logs/
-db_data/
+ollama_data/
+grafana_data/
+
+# --- LOGS Y TEMPORALES ---
 *.log
-ollama_data/
-ollama_data/
+snort_logs/
+mail_logs/
+logs/
+.version_counter
+.DS_Store
+node_modules/
+
+# --- ARCHIVOS DE SISTEMA ---
+.lock
+/tmp/
