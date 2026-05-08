@@ -8,29 +8,46 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}[SOC-SETUP]${NC} Iniciando provisión de infraestructura segura..."
+echo -e "${BLUE}[SOC-SYSTEM]${NC} Iniciando provisión de infraestructura..."
 
-cd "$REPO_DIR" || { echo -e "${RED}Error: No se encontró el directorio${NC}"; exit 1; }
+# 1. VALIDACIÓN DE DIRECTORIO
+cd "$REPO_DIR" || { echo -e "${RED}Error: No se encontró el directorio del proyecto${NC}"; exit 1; }
 
-# 1. CREAR CARPETAS DE PERSISTENCIA (DATOS)
-echo -e "${GREEN}[1/5]${NC} Creando directorios de datos y logs..."
+# 2. CREACIÓN DE PERSISTENCIA
+echo -e "${GREEN}[1/4]${NC} Generando volúmenes de datos y directorios de logs..."
+# Carpetas de datos para contenedores
 mkdir -p db_data redis_data ldap_data ldap_config ollama_data grafana_data certbot/www
+# Carpetas de registros del sistema
 mkdir -p snort_logs mail_logs logs/nginx logs/php
+
+# --- FIX DE PERMISOS (CRÍTICO) ---
+# Permisos generales para logs (777 para que Snort y Nginx escriban sin problemas)
 chmod -R 777 snort_logs mail_logs logs
 
-# 2. MIGRACIÓN DE CARPETA SETUP (DB & LDAP INIT)
-echo -e "${GREEN}[2/5]${NC} Generando scripts de inicialización (Init SQL/LDAP)..."
+# FIX específico para Grafana: El contenedor usa el UID 472
+echo -e "      ${BLUE}[FIX]${NC} Aplicando permisos de seguridad para Grafana (UID 472)..."
+sudo chown -R 472:472 grafana_data
+chmod -R 775 grafana_data
+
+echo -e "      ${GREEN}OK:${NC} Estructura de archivos y permisos preparados."
+
+# 3. GENERACIÓN DE ESQUEMAS DE INICIALIZACIÓN
+echo -e "${GREEN}[2/4]${NC} Generando archivos de inicialización (Init SQL/LDAP)..."
 mkdir -p config/init
 
-# Crear esquema de DB (Lo que estaba en setup/db/init.sql)
+# Esquema de Base de Datos MariaDB
 cat <<EOF > config/init/db_init.sql
 CREATE DATABASE IF NOT EXISTS cyberaudit;
 USE cyberaudit;
--- Aquí puedes añadir tus tablas de usuarios, logs de auditoría, etc.
-CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50), password VARCHAR(255));
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 EOF
 
-# Crear esquema de LDAP (Lo que estaba en setup/ldap/init.ldif)
+# Esquema de Directorio OpenLDAP
 cat <<EOF > config/init/ldap_init.ldif
 dn: ou=users,dc=g7,dc=local
 objectClass: organizationalUnit
@@ -40,34 +57,39 @@ dn: ou=groups,dc=g7,dc=local
 objectClass: organizationalUnit
 ou: groups
 EOF
+echo -e "      ${GREEN}OK:${NC} Scripts de configuración inyectados en config/init/."
 
-# 3. GENERACIÓN DE .ENV INTERACTIVO
-echo -e "${GREEN}[3/5]${NC} Configurando variables de entorno..."
+# 4. VALIDACIÓN DE VARIABLES DE ENTORNO
+echo -e "${GREEN}[3/4]${NC} Verificando configuración del entorno (.env)..."
 if [ ! -f .env ]; then
-    # Usamos el generador interactivo que hicimos antes o uno rápido aquí:
-    cat <<EOF > .env
-DB_NAME="cyberaudit"
-DB_USER="cyberuser"
-DB_PASSWORD="superpassword"
-DB_ROOT_PASSWORD="rootpassword"
-REDIS_PASSWORD="redispass"
-LDAP_ADMIN_PASSWORD="adminpass"
-# Añade aquí tus CLIENT_ID y SECRETS de Google/MS
-EOF
-    echo -e "${YELLOW}[AVISO]${NC} Se ha creado un .env básico. Edítalo con tus credenciales de Google/MS."
+    echo -e "      ${YELLOW}[!]${NC} Archivo .env no detectado."
+    if [ -f scripts/generate_env.sh ]; then
+        bash scripts/generate_env.sh
+    else
+        echo -e "      ${RED}[ERROR]${NC} No se encuentra scripts/generate_env.sh."
+        exit 1
+    fi
 else
-    echo -e "${BLUE}[SKIP]${NC} El archivo .env ya existe."
+    echo -e "      ${GREEN}OK:${NC} Archivo .env detectado."
 fi
 
-# 4. CONFIGURACIÓN DE SESIÓN REDIS
-echo -e "${GREEN}[4/5]${NC} Configurando persistencia de sesión PHP -> Redis..."
+# 5. PERSISTENCIA DE SESIÓN (REDIS)
+echo -e "${GREEN}[4/4]${NC} Configurando puente de sesión PHP -> Redis..."
 mkdir -p src/includes
 cat <<EOF > src/includes/session_redis.php
 <?php
+/**
+ * Configuración de persistencia de sesión en clúster Redis
+ * Autogenerado por setup_infrastructure.sh
+ */
 ini_set('session.save_handler', 'redis');
 \$redis_pass = getenv('REDIS_PASSWORD') ?: 'redispass';
 ini_set('session.save_path', "tcp://s5_redis:6379?auth=\$redis_pass");
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 EOF
 
-echo -e "\n${BLUE}[SUCCESS]${NC} Infraestructura lista y repositorio saneado."
+echo -e "\n${BLUE}[SUCCESS]${NC} La infraestructura del SOC está lista."
+echo -e "${BLUE}[INFO]${NC} Use '${YELLOW}docker compose up -d --build${NC}' para iniciar los servicios."
