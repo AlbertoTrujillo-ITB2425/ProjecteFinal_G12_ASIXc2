@@ -1,51 +1,83 @@
 #!/bin/bash
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURACIÓN DE GRADO MILITAR ---
 REPO_DIR="/home/ubuntu/ProjecteFinal_G7"
-# Formato: Día/Mes/Año - Hora:Min
-FECHA=$(date +"%d/%m/%Y %H:%M")
+LOG_FILE="$REPO_DIR/logs/backup_history.log"
+LOCK_FILE="/tmp/soc_backup.lock"
+VERSION_FILE="$REPO_DIR/.version_counter"
+FECHA=$(date +"%Y-%m-%d %H:%M:%S")
+TIMESTAMP=$(date +"%s")
 
-# Colores para una terminal pro
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# Colores SOC-Style
+G='\033[0;32m' # Green
+B='\033[0;34m' # Blue
+Y='\033[1;33m' # Yellow
+R='\033[0;31m' # Red
+NC='\033[0m'    # No Color
 
-echo -e "${BLUE}[SOC-SYSTEM]${NC} Iniciando proceso de respaldo..."
+# 1. EVITAR EJECUCIÓN DUPLICADA (Locking)
+if [ -f "$LOCK_FILE" ]; then
+    echo -e "${R}[CRITICAL]${NC} Otra instancia del backup ya está en ejecución. Abortando."
+    exit 1
+fi
+touch "$LOCK_FILE"
 
-# 1. Navegar al directorio y validar
-cd "$REPO_DIR" || { echo -e "${RED}Error: No se encontró el directorio${NC}"; exit 1; }
+# Función de salida segura
+finish() {
+    rm -f "$LOCK_FILE"
+}
+trap finish EXIT
 
-# 2. Verificar si hay cambios antes de hacer nada
+echo -e "${B}[SOC-SYSTEM]${NC} Iniciando respaldo de alta integridad..."
+
+# 2. VALIDACIÓN DE DIRECTORIO
+cd "$REPO_DIR" || { echo -e "${R}[FAIL]${NC} Directorio no encontrado."; exit 1; }
+mkdir -p logs # Asegurar que existe carpeta de logs
+
+# 3. LIMPIEZA PRE-BACKUP (Mantenimiento de infraestructura)
+echo -e "${G}[MAINTENANCE]${NC} Rotando logs internos y temporales..."
+find ./snort_logs -type f -name "*.log.*" -mtime +7 -delete 2>/dev/null
+
+# 4. SINCRONIZACIÓN INTELIGENTE (Anti-Rejection)
+echo -e "${G}[SYNC]${NC} Trayendo cambios remotos (Pull Rebase)..."
+# Intentamos 3 veces si la red de AWS/Cloudflare falla
+RETRY=0
+until [ $RETRY -ge 3 ]
+do
+    git pull --rebase origin main && break
+    RETRY=$[$RETRY+1]
+    echo -e "${Y}[RETRY]${NC} Error de red. Intento $RETRY de 3..."
+    sleep 5
+done
+
+# 5. VERIFICACIÓN DE CAMBIOS LOCALES
 if [ -z "$(git status --porcelain)" ]; then
-    echo -e "${YELLOW}[SKIP]${NC} No hay cambios detectados. Abortando."
+    echo -e "${Y}[IDLE]${NC} No hay cambios exclusivos en Ubuntu. Sincronización completada."
     exit 0
 fi
 
-# 3. Lógica de Versión (Contador simple)
-# Leemos el último número de versión de un archivo oculto o empezamos en 1
-if [ ! -f .version_counter ]; then
-    echo "1.0.0" > .version_counter
-fi
-VERSION=$(cat .version_counter)
+# 6. GESTIÓN DE VERSIÓN
+if [ ! -f "$VERSION_FILE" ]; then echo "1.0.0" > "$VERSION_FILE"; fi
+VERSION=$(cat "$VERSION_FILE")
 
-# 4. Git Flow
-echo -e "${GREEN}[STEP 1]${NC} Indexando archivos..."
+# 7. INDEXACIÓN Y COMMIT
+echo -e "${G}[INTEGRITY]${NC} Indexando nuevos vectores de datos..."
 git add .
 
-# Creamos el mensaje con la Versión y la Fecha corregida
-COMMIT_MSG="v$VERSION | Release: $FECHA | Automated Backup"
-
-echo -e "${GREEN}[STEP 2]${NC} Creando commit: ${YELLOW}$COMMIT_MSG${NC}"
+COMMIT_MSG="v$VERSION | SOC-Backup | $FECHA | Hash: $TIMESTAMP"
 git commit -m "$COMMIT_MSG"
 
-echo -e "${GREEN}[STEP 3]${NC} Subiendo a producción (Push)..."
-git push
-
-# 5. Incrementar versión para el próximo commit (ej: 1.0.1, 1.0.2...)
-# Esta pequeña lógica incrementa el último dígito
-NEXT_VERSION=$(echo $VERSION | awk -F. '{$NF = $NF + 1;} 1' OFS=.)
-echo "$NEXT_VERSION" > .version_counter
-
-echo -e "${BLUE}[SUCCESS]${NC} Backup completado correctamente."
+# 8. SUBIDA (PUSH) CON VERIFICACIÓN DE SALIDA
+echo -e "${G}[UPLOAD]${NC} Transfiriendo a servidor seguro GitHub..."
+if git push origin main; then
+    # Incrementar versión solo si tuvo éxito
+    NEXT_VERSION=$(echo $VERSION | awk -F. '{$NF = $NF + 1;} 1' OFS=.)
+    echo "$NEXT_VERSION" > "$VERSION_FILE"
+    
+    echo -e "${G}[SUCCESS]${NC} Backup $VERSION completado y verificado."
+    echo "[$FECHA] SUCCESS - v$VERSION - Push OK" >> "$LOG_FILE"
+else
+    echo -e "${R}[ERROR]${NC} Fallo crítico en el envío. Los cambios se mantienen localmente."
+    echo "[$FECHA] ERROR - v$VERSION - Push Failed" >> "$LOG_FILE"
+    exit 1
+fi
