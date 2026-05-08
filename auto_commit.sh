@@ -44,7 +44,7 @@ echo -e "${G}[SYNC]${NC} Trayendo cambios remotos (Pull Rebase)..."
 RETRY=0
 until [ $RETRY -ge 3 ]
 do
-    git pull --rebase origin main && break
+    git pull --rebase --autostash origin main && break
     RETRY=$[$RETRY+1]
     echo -e "${Y}[RETRY]${NC} Error de red. Intento $RETRY de 3..."
     sleep 5
