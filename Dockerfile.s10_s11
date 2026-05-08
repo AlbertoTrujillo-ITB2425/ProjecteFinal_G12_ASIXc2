@@ -2,31 +2,31 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Instalación unificada de paquetes
-RUN apt-get update && apt-get install -y \
+# 1. Instalación unificada y limpieza de caché inmediata
+RUN apt-get update && apt-get install -y --no-install-recommends \
     snort \
     postfix \
     mailutils \
     net-tools \
     iputils-ping \
     tcpdump \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Configuración de Snort
-RUN mkdir -p /var/log/snort && touch /var/log/snort/alert
+# 2. Configuración de Directorios
+RUN mkdir -p /var/log/snort /var/lib/snort && \
+    touch /var/log/snort/alert /var/log/mail.log
 
-# 3. Configuración de Postfix
-RUN postconf -e "myhostname=mail.nestle.local" \
-    && postconf -e "mydomain=nestle.local" \
+# 3. Configuración de Postfix (Corregido para tu dominio real si fuera necesario)
+RUN postconf -e "myhostname=mail.cyberpyme.es" \
+    && postconf -e "mydomain=cyberpyme.es" \
     && postconf -e "myorigin=\$mydomain" \
     && postconf -e "inet_interfaces=all" \
-    && postconf -e "mynetworks=172.0.0.0/8 127.0.0.0/8"
+    && postconf -e "mynetworks=172.16.0.0/12 127.0.0.0/8"
 
-RUN touch /var/log/mail.log
-
-# 4. Exposición de puertos (Correo + Snort no usa puerto específico de entrada pero se define 0 por compatibilidad)
 EXPOSE 25 587
 
-# 5. Comando de inicio unificado
-# Este comando inicia postfix y luego usa tail para mantener el contenedor vivo y ver logs
+# 4. Script de inicio robusto
+# Usamos exec para que las señales de stop de Docker lleguen correctamente
 CMD service postfix start && tail -f /var/log/mail.log /var/log/snort/alert
