@@ -70,14 +70,4 @@ ini_set('session.save_path', "tcp://s5_redis:6379?auth=\$redis_pass");
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 EOF
 
-# 5. LIMPIEZA DE SEGURIDAD EN GIT (Borrar carpetas sensibles)
-echo -e "${GREEN}[5/5]${NC} Eliminando rastros sensibles de Git (Certificados, Logs, Setup)..."
-# Eliminamos físicamente la carpeta setup ya que su contenido ahora vive en config/init
-rm -rf setup/
-
-# Comandos Git para limpiar el historial (No borran los archivos de Ubuntu, solo de GitHub)
-git rm -r --cached setup/ certs/ temp_certbot/ snort_logs/ logs/ db_data/ redis_data/ 2>/dev/null
-git add .gitignore scripts/setup_infrastructure.sh config/init/
-
 echo -e "\n${BLUE}[SUCCESS]${NC} Infraestructura lista y repositorio saneado."
-echo -e "${YELLOW}[NEXT STEP]${NC} Ejecuta: ${BLUE}git commit -m \"Final Refactor: Setup removed and infra automated\" && git push${NC}"
