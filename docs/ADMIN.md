@@ -73,15 +73,4 @@ Un cop el sistema estigui "Up", les interfícies estaran disponibles a:
 
 ---
 
-### **5. Seguretat HTTPS (Opcional)**
-
-Per activar el xifrat TLS en producció, executeu el script de certificació automàtica (requereix un nom de domini configurat):
-
-```bash
-sudo bash scripts/enable_https.sh
-
-```
-
----
-
 **CyberPyme SOC v7.6.5** | *Guia d'administració per a desplegaments en contenidors.*
