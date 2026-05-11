@@ -6,7 +6,7 @@ header("Access-Control-Allow-Origin: *");
 $inputJSON = file_get_contents('php://input');
 $input = json_decode($inputJSON, true);
 
-// Extraer target y tipo (buscamos en el JSON o en REQUEST por si acaso)
+// Extraer target y tipo
 $target = $input['target'] ?? $_REQUEST['target'] ?? null;
 $type = $input['type'] ?? 'quick';
 
@@ -21,10 +21,22 @@ if (!$target) {
 // Sanitización
 $target = preg_replace('/[^A-Za-z0-9\.\-\/]/', '', $target);
 
-// Construir comando según tipo
-$params = "-F"; // Default quick
-if ($type === 'full') $params = "-sV -T4";
-if ($type === 'vuln') $params = "--script vuln";
+/**
+ * CONFIGURACIÓN DE COMANDOS
+ * Añadimos -Pn para saltar el descubrimiento de host y evitar falsos "Host down"
+ */
+switch ($type) {
+    case 'full':
+        $params = "-sV -T4 -Pn"; // Escaneo de servicios y versiones
+        break;
+    case 'vuln':
+        $params = "-Pn --script vuln"; // Scripts de vulnerabilidades
+        break;
+    case 'quick':
+    default:
+        $params = "-F -Pn"; // Escaneo rápido de los 100 puertos principales
+        break;
+}
 
 $command = "nmap $params " . escapeshellarg($target) . " 2>&1";
 

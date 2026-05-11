@@ -1,13 +1,12 @@
+version: '3.8'
 
 # =========================================================================
-# PROYECTO: CYBERPYME SOC DASHBOARD v3.0
-# OPTIMIZACIÓN: Cluster Balanceado + Persistencia Redis + Proxy Inverso
+# PROYECTO: CYBERPYME SOC DASHBOARD v3.0 - FULL INFRASTRUCTURE (FIXED)
 # =========================================================================
 
 services:
 
-  # --- S1: GATEWAY & LOAD BALANCER ---
-  # Gestiona SSL, tráfico Cloudflare y balanceo entre nodos s2 y s3.
+  # --- S1: GATEWAY & LOAD BALANCER (NGINX) ---
   s1_nginx:
     image: nginx:1.24-alpine
     container_name: s1_nginx
@@ -17,6 +16,7 @@ services:
     volumes:
       - ./src:/var/www/html:ro
       - ./config/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./config/nginx/grafana_ips.conf:/etc/nginx/conf.d/grafana_ips.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
     networks:
@@ -26,18 +26,11 @@ services:
     depends_on:
       - s2_node
       - s3_node
-      - s5_redis
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - s8_grafana
 
-  # --- S2: WEB NODE ALPHA (PHP-FPM) ---
+  # --- S2 & S3: WEB NODES (PHP-FPM CLUSTER) ---
   s2_node:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: s2_node
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -46,16 +39,14 @@ services:
       - DB_NAME=${DB_NAME}
     volumes:
       - ./src:/var/www/html
+      - php_sessions:/tmp  # <--- COMPARTIR SESIONES
     networks:
       - net_private
       - net_public
     restart: always
 
-  # --- S3: WEB NODE BETA (PHP-FPM) ---
   s3_node:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: s3_node
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -64,6 +55,7 @@ services:
       - DB_NAME=${DB_NAME}
     volumes:
       - ./src:/var/www/html
+      - php_sessions:/tmp  # <--- COMPARTIR SESIONES
     networks:
       - net_private
       - net_public
@@ -85,8 +77,7 @@ services:
     restart: always
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
-  # --- S5: REDIS (Session Handler & Cache) ---
-  # Crucial para que el F5 no cierre la sesión en el cluster.
+  # --- S5: REDIS (Cache & Sessions) ---
   s5_redis:
     image: redis:7-alpine
     container_name: s5_redis
@@ -97,7 +88,7 @@ services:
       - net_private
     restart: always
 
-  # --- S6: DIRECTORY SERVICE (LDAP) ---
+  # --- S6: DIRECTORY SERVICE (OpenLDAP) ---
   s6_openldap:
     image: osixia/openldap:1.5.0
     container_name: s6_openldap
@@ -125,33 +116,39 @@ services:
       - net_private
     restart: always
 
-# --- S8: TELEMETRY (Grafana) ---
+  # --- S8: TELEMETRY (Grafana) ---
   s8_grafana:
     image: grafana/grafana:10.2.3
     container_name: s8_grafana
     user: "472"
-    ports:
-      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS:-admin123}
-      - GF_SERVER_DOMAIN=3.215.30.52
-      # Al poner la IP aquí, Grafana aceptará conexiones directas
-      - GF_SERVER_ROOT_URL=http://3.215.30.52:3000/
-      # Ponemos esto en FALSE si vas a entrar por IP directamente sin el prefijo /grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+      - GF_SERVER_DOMAIN=cyberpyme.es
+      - GF_SERVER_ROOT_URL=https://cyberpyme.es/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_PROTOCOL=http
+      - GF_SESSION_COOKIE_SECURE=true
+      - GF_SESSION_COOKIE_SAMESITE=lax
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_GOOGLE_ENABLED=true
+      - GF_AUTH_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GF_AUTH_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GF_AUTH_GOOGLE_ALLOW_SIGN_UP=true
+      - GF_AUTH_GOOGLE_ALLOWED_DOMAINS=itb.cat
     volumes:
       - ./grafana_data:/var/lib/grafana
     networks:
       - net_private
+      - net_public
     restart: always
 
+  # --- S9: SECURITY SCANNER (Async PHP) ---
   s9_scanner:
     build: .
     container_name: s9_scanner
     volumes:
       - ./src:/var/www/html
+      - php_sessions:/tmp  # <--- COMPARTIR SESIONES CON NODOS WEB
     env_file: .env
     networks:
       - net_public
@@ -163,9 +160,7 @@ services:
 
   # --- S10: MAIL GATEWAY (Postfix) ---
   s10_postfix:
-    build:
-      context: .
-      dockerfile: Dockerfile.s10_s11
+    build: { context: ., dockerfile: Dockerfile.s10_s11 }
     container_name: s10_postfix
     ports:
       - "25:25"
@@ -176,9 +171,7 @@ services:
 
   # --- S11: IDS/IPS (Snort) ---
   s11_snort:
-    build:
-      context: .
-      dockerfile: Dockerfile.s10_s11
+    build: { context: ., dockerfile: Dockerfile.s10_s11 }
     container_name: s11_snort
     command: snort -A console -i eth0 -c /etc/snort/snort.conf
     volumes:
@@ -207,34 +200,20 @@ services:
     restart: always
 
 # =========================================================================
-# SEGURIDAD DE RED
+# NETWORKS & VOLUMES
 # =========================================================================
 networks:
   net_public:
     driver: bridge
-    labels:
-      com.docker.network.bridge.name: "br_soc_pub"
   net_private:
     driver: bridge
-    internal: false 
-    labels:
-      com.docker.network.bridge.name: "br_soc_priv"
 
-# =========================================================================
-# VOLÚMENES PERSISTENTES (Mapeo a carpetas locales)
-# =========================================================================
 volumes:
   db_data:
-    driver: local
   redis_data:
-    driver: local
   ldap_data:
-    driver: local
   ldap_config:
-    driver: local
   grafana_data:
-    driver: local
   ollama_data:
-    driver: local
   snort_logs:
-    driver: local
+  php_sessions:
