@@ -17,6 +17,7 @@
     --dropdown-bg: #0f172a;
 }
 
+/* Clase para modo claro (usada por JS/Tailwind) */
 .light-mode { 
     /* MODO CLARO */
     --bg-main: #f8fafc;        
@@ -41,8 +42,8 @@ body {
 }
 
 /* Transiciones suaves para los textos */
-h1, h2, h3, h4, h5, h6, p, span {
-    transition: color 0.4s ease;
+h1, h2, h3, h4, h5, h6, p, span, a, button, label {
+    transition: color 0.4s ease, background-color 0.4s ease, border-color 0.4s ease;
 }
 
 /* --- COMPONENTES DE DISEÑO --- */
@@ -102,13 +103,27 @@ h1, h2, h3, h4, h5, h6, p, span {
     color: transparent;
 }
 
-/* --- GOOGLE TRANSLATE FIXES --- */
-.goog-te-banner-frame, .goog-tooltip, .goog-te-balloon-frame { display: none !important; }
-font { background-color: transparent !important; box-shadow: none !important; color: inherit !important; }
-#google_translate_element { position: absolute !important; left: -9999px !important; top: -9999px !important; z-index: -999 !important; }
+/* --- SCROLLBAR PERSONALIZADO --- */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--glass-border);
+    border-radius: 20px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--accent-primary);
+}
 
-/* --- COMPONENTES ESPECÍFICOS --- */
-.lang-container { position: relative; z-index: 1000; }
+/* --- DROPDOWN DE IDIOMA (Estilo propio) --- */
+.lang-container { 
+    position: relative; 
+    z-index: 1000; 
+}
+
 .lang-dropdown { 
     visibility: hidden; 
     opacity: 0; 
@@ -122,11 +137,18 @@ font { background-color: transparent !important; box-shadow: none !important; co
     transform: translateY(-10px); 
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
     box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); 
+    padding: 0.5rem;
 }
+
 .light-mode .lang-dropdown { 
     box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); 
 }
-.lang-container:hover .lang-dropdown { visibility: visible; opacity: 1; transform: translateY(0); }
+
+.lang-container:hover .lang-dropdown { 
+    visibility: visible; 
+    opacity: 1; 
+    transform: translateY(0); 
+}
 
 /* --- DROPDOWN DE USUARIO --- */
 .user-menu .dropdown {
@@ -137,10 +159,25 @@ font { background-color: transparent !important; box-shadow: none !important; co
     visibility: hidden;
     transform: translateY(10px);
     transition: all .25s ease;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+}
+
+.light-mode .user-menu .dropdown {
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
 }
 
 .user-menu:hover .dropdown {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
+}
+
+/* --- ANIMACIONES --- */
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.5s ease-out forwards;
 }
