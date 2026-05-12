@@ -179,16 +179,6 @@ ProjecteFinal_G7/
 
 ---
 
-## 📞 Support & Contact
-
-| Audience | Contact |
-|---------|---------|
-| **Customers** | support@cyberaudit.local (< 24h response, ES/EN) |
-| **ITB Professors** | alberto.trujillo.7e6@itb.cat · [Demo](https://cyberpyme.free.nf/l) |
-| **Developers** | [GitHub Issues](https://github.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/issues) |
-
----
-
 ## 📄 License
 
 MIT License — Copyright (c) 2026 Group 7, ITB
@@ -201,7 +191,6 @@ See [LICENSE](./LICENSE) for details.
 
 - **Institut Tecnològic de Barcelona** — Academic guidance and AWS credits
 - **Open Source Community** — Docker, BunkerWeb, Wazuh, Solana
-- **Circle** — EURC/USDC stablecoin infrastructure
 
 ---
 
@@ -211,7 +200,6 @@ See [LICENSE](./LICENSE) for details.
 
 [🏠 Website](https://cyberpyme.es) • [🎮 Demo](https://cyberpyme.free.nf/) • [📚 Docs](./docs)
 
-**EURC** • **USDC** • **Solana Network** — *Fast • Secure • Low Fees*
 
 **Made by Group 7** — Alberto Trujillo • Joel Muñoz • Luka Ukleba  
 **Institut Tecnològic de Barcelona - 2026**
