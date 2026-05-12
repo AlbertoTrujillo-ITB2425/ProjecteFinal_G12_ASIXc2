@@ -1,0 +1,174 @@
+/* src/assets/css/pdf.css */
+
+@page {
+    margin: 15mm 15mm 25mm 15mm; /* Top Right Bottom Left - Espacio extra abajo para el footer */
+    size: A4 portrait;
+}
+
+body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    color: #333;
+    background: #fff;
+    font-size: 10pt;
+    line-height: 1.5;
+}
+
+/* Evitar cortes feos en tablas y títulos */
+h1, h2, h3, .section-title, table {
+    page-break-inside: avoid;
+}
+
+/* HEADER CON TABLA */
+.header-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-bottom: 3px solid #0f172a;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+}
+
+.header-left {
+    text-align: left;
+    vertical-align: bottom;
+}
+
+.header-right {
+    text-align: right;
+    vertical-align: bottom;
+    font-size: 9pt;
+    color: #64748b;
+}
+
+.logo-text {
+    font-size: 20pt;
+    font-weight: bold;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.logo-subtitle {
+    font-size: 9pt;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+/* RISK BOX */
+.risk-container {
+    background-color: #f0fdf4; /* Se sobrescribe dinámicamente desde PHP */
+    border: 2px solid #16a34a; /* Se sobrescribe dinámicamente desde PHP */
+    padding: 12px;
+    margin-bottom: 25px;
+}
+
+.risk-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.risk-table td {
+    border: none;
+    padding: 0;
+    vertical-align: middle;
+}
+
+.risk-label {
+    font-size: 9pt;
+    text-transform: uppercase;
+    color: #555;
+    font-weight: bold;
+}
+
+.risk-score {
+    font-size: 18pt;
+    font-weight: bold;
+    color: #16a34a; /* Se sobrescribe dinámicamente desde PHP */
+    text-transform: uppercase;
+}
+
+.target-name {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #0f172a;
+}
+
+/* SECCIONES */
+.section-title {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    padding: 8px 12px;
+    font-size: 11pt;
+    font-weight: bold;
+    border-left: 6px solid #0f172a;
+    margin-top: 25px;
+    margin-bottom: 15px;
+}
+
+.content {
+    text-align: justify;
+    margin-bottom: 15px;
+}
+
+/* TABLA DE PUERTOS */
+table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 9pt;
+}
+
+th {
+    background-color: #e2e8f0;
+    color: #334155;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid #cbd5e1;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 8pt;
+}
+
+td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+/* LOGS / TERMINAL STYLE */
+.terminal-window {
+    background-color: #1e293b;
+    color: #38bdf8;
+    padding: 15px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 8pt;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 1px solid #334155;
+}
+
+.terminal-header {
+    color: #94a3b8;
+    font-size: 7pt;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 5px;
+    font-weight: bold;
+}
+
+/* FOOTER FIJO */
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 20px;
+    text-align: center;
+    font-size: 8pt;
+    color: #64748b;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 5px;
+    background-color: #ffffff; /* Fondo blanco para evitar solapamiento */
+}

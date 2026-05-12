@@ -6,14 +6,10 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 /* =========================
-   DEBUG (QUITAR EN PROD)
+   CONFIGURACIÓN E INPUT
 ========================= */
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
-/* =========================
-   INPUT VALIDATION
-========================= */
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit('Forbidden');
@@ -28,65 +24,66 @@ $date = gmdate('Y-m-d H:i:s') . ' UTC';
 $reportId = 'SOC-' . strtoupper(substr(sha1(uniqid('', true)), 0, 8));
 
 /* =========================
-   PARSE PORTS
+   LÓGICA DE DATOS
 ========================= */
 
+// Parsear puertos
 preg_match_all('/(\d+)\/(tcp|udp)\s+open\s+([^\s]+)/i', $logs, $m, PREG_SET_ORDER);
-
 $ports = [];
 foreach ($m as $x) {
-    $ports[] = "{$x[1]}/{$x[2]} {$x[3]}";
+    $ports[] = [
+        'port' => "{$x[1]}/{$x[2]}",
+        'service' => htmlspecialchars($x[3])
+    ];
 }
 
-/* =========================
-   RISK ENGINE
-========================= */
-
+// Cálculo de riesgo
 $risk = count($ports) * 8;
-
 if (stripos($logs, 'telnet') !== false) $risk += 40;
 if (stripos($logs, 'ftp') !== false) $risk += 25;
 
 if ($risk > 80) {
-    $level = ['CRITICAL', 'CRITICAL'];
+    $level = ['CRITICAL', '#dc2626']; // Rojo
+    $riskBg = '#fef2f2';
 } elseif ($risk > 50) {
-    $level = ['HIGH', 'HIGH'];
+    $level = ['HIGH', '#ea580c']; // Naranja
+    $riskBg = '#fff7ed';
 } elseif ($risk > 20) {
-    $level = ['MEDIUM', 'MEDIUM'];
+    $level = ['MEDIUM', '#ca8a04']; // Amarillo
+    $riskBg = '#fefce8';
 } else {
-    $level = ['LOW', 'LOW'];
+    $level = ['LOW', '#16a34a']; // Verde
+    $riskBg = '#f0fdf4';
 }
-
-/* =========================
-   SAFE TEXT
-========================= */
 
 function safe($text) {
     return nl2br(htmlspecialchars($text));
 }
 
-/* =========================
-   PORT TAGS
-========================= */
-
-$portsHtml = '';
-foreach ($ports as $p) {
-    $portsHtml .= "<span class='tag'>{$p}</span>";
-}
-
-/* =========================
-   EXEC SUMMARY
-========================= */
-
-$summary = "
-The target {$target} exposes externally reachable services that increase the attack surface.
-Based on detected open ports and service exposure, the system is classified as {$level[0]} risk.
-
-Immediate remediation is recommended for unnecessary exposed services and insecure communication channels.
+$summaryText = "
+The target <strong>{$target}</strong> has been scanned for external vulnerabilities. 
+The analysis identified multiple open services contributing to an increased attack surface. 
+Based on the severity of exposed protocols and potential exploitability, the overall risk posture is classified as <strong style='color:{$level[1]}'>{$level[0]}</strong>.
+<br><br>
+<strong>Recommendation:</strong> Immediate review of firewall rules and service hardening is advised for all critical findings.
 ";
 
 /* =========================
-   HTML BUFFER
+   CARGAR CSS EXTERNO
+========================= */
+// Ruta al archivo CSS
+$cssPath = __DIR__ . '/../../assets/css/pdf.css';
+$cssContent = '';
+
+if (file_exists($cssPath)) {
+    $cssContent = file_get_contents($cssPath);
+} else {
+    // Fallback por si no encuentra el archivo (opcional)
+    $cssContent = "body { font-family: Helvetica, Arial, sans-serif; }";
+}
+
+/* =========================
+   GENERACIÓN HTML
 ========================= */
 
 ob_start();
@@ -96,203 +93,106 @@ ob_start();
 <html>
 <head>
 <meta charset="UTF-8">
-
 <style>
-
-/* =========================
-   BASE
-========================= */
-
-body {
-    font-family: DejaVu Sans, Arial, sans-serif;
-    margin: 0;
-    background: #ffffff;
-    color: #111827;
-}
-
-.page {
-    padding: 18mm;
-}
-
-/* =========================
-   HEADER (PALO ALTO STYLE SAFE)
-========================= */
-
-.header {
-    background: #0b1220;
-    color: #ffffff;
-    padding: 18px;
-    border-radius: 6px;
-    margin-bottom: 16px;
-    border-bottom: 3px solid #dc2626;
-}
-
-.title {
-    font-size: 20pt;
-    font-weight: 800;
-}
-
-.meta {
-    font-size: 9pt;
-    opacity: 0.9;
-    margin-top: 4px;
-}
-
-/* =========================
-   RISK BADGE
-========================= */
-
-.risk {
-    display: inline-block;
-    margin-top: 10px;
-    padding: 6px 12px;
-    font-weight: bold;
-    font-size: 10pt;
-    border-radius: 4px;
-    color: #ffffff;
-}
-
-/* =========================
-   SECTIONS
-========================= */
-
-.block {
-    margin-top: 12px;
-    padding: 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: #ffffff;
-}
-
-.h {
-    font-size: 10pt;
-    font-weight: 700;
-    color: #1e3a8a;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-}
-
-/* =========================
-   SUMMARY
-========================= */
-
-.summary {
-    background: #f3f4f6;
-    padding: 10px;
-    border-radius: 6px;
-    font-size: 10pt;
-    line-height: 1.5;
-}
-
-/* =========================
-   TAGS
-========================= */
-
-.tag {
-    display: inline-block;
-    background: #e5f0ff;
-    color: #1d4ed8;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 9pt;
-    margin: 2px;
-}
-
-/* =========================
-   LOGS (SIEM STYLE SAFE)
-========================= */
-
-.logs {
-    background: #0f172a;
-    color: #22c55e;
-    padding: 12px;
-    border-radius: 6px;
-    font-size: 8.5pt;
-    font-family: "Courier New", monospace;
-    white-space: pre-wrap;
-}
-
-/* =========================
-   FOOTER
-========================= */
-
-.footer {
-    margin-top: 16px;
-    padding-top: 10px;
-    border-top: 1px solid #e5e7eb;
-    text-align: center;
-    font-size: 8pt;
-    color: #6b7280;
-}
-
-/* =========================
-   RISK COLORS
-========================= */
-
-.CRITICAL { background:#dc2626; }
-.HIGH { background:#ef4444; }
-.MEDIUM { background:#f59e0b; }
-.LOW { background:#10b981; }
-
+    /* Inyectamos el CSS cargado desde el archivo */
+    <?= $cssContent ?>
+    
+    /* Estilos dinámicos que dependen de variables PHP */
+    .risk-container {
+        background-color: <?= $riskBg ?> !important;
+        border-color: <?= $level[1] ?> !important;
+    }
+    .risk-score {
+        color: <?= $level[1] ?> !important;
+    }
 </style>
-
 </head>
 
 <body>
 
-<div class="page">
+    <!-- HEADER CON TABLA -->
+    <table class="header-table">
+        <tr>
+            <td class="header-left">
+                <div class="logo-text">SECURITY REPORT</div>
+                <div class="logo-subtitle">Automated Vulnerability Assessment</div>
+            </td>
+            <td class="header-right">
+                <div><strong>Date:</strong> <?= $date ?></div>
+                <div><strong>ID:</strong> <?= $reportId ?></div>
+                <div><strong>Analyst:</strong> <?= $auditor ?></div>
+            </td>
+        </tr>
+    </table>
 
-    <!-- HEADER -->
-    <div class="header">
-        <div class="title">SECURITY POSTURE REPORT</div>
-
-        <div class="meta">
-            Target: <b><?= $target ?></b> · Analyst: <b><?= $auditor ?></b>
-        </div>
-
-        <div class="meta">
-            Generated: <?= $date ?> · Report ID: <?= $reportId ?>
-        </div>
-
-        <div class="risk <?= $level[0] ?>">
-            <?= $level[0] ?> RISK
-        </div>
+    <!-- RISK LEVEL -->
+    <div class="risk-container">
+        <table class="risk-table">
+            <tr>
+                <td style="width: 70%;">
+                    <span class="risk-label">Target Asset:</span> 
+                    <span class="target-name"><?= $target ?></span>
+                </td>
+                <td style="width: 30%; text-align: right;">
+                    <span class="risk-label">Risk Level:</span> 
+                    <span class="risk-score"><?= $level[0] ?></span>
+                </td>
+            </tr>
+        </table>
     </div>
 
-    <!-- EXEC SUMMARY -->
-    <div class="block">
-        <div class="h">EXECUTIVE SUMMARY</div>
-        <div class="summary"><?= $summary ?></div>
+    <!-- SUMMARY -->
+    <div class="section-title">1. Executive Summary</div>
+    <div class="content">
+        <?= $summaryText ?>
     </div>
 
-    <!-- OPEN SERVICES -->
-    <div class="block">
-        <div class="h">EXPOSED SERVICES</div>
-        <div><?= $portsHtml ?></div>
+    <!-- PORTS TABLE -->
+    <div class="section-title">2. Exposed Services</div>
+    <div class="content">
+        <?php if (!empty($ports)): ?>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">Port / Protocol</th>
+                        <th style="width: 75%;">Service / Banner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($ports as $p): ?>
+                    <tr>
+                        <td style="font-family: monospace; font-weight: bold;"><?= $p['port'] ?></td>
+                        <td><?= $p['service'] ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php else: ?>
+            <p>No open ports detected in the provided logs.</p>
+        <?php endif; ?>
     </div>
 
     <!-- AI ANALYSIS -->
     <?php if (!empty($ai)) { ?>
-    <div class="block">
-        <div class="h">THREAT ANALYSIS</div>
-        <div><?= safe($ai) ?></div>
+    <div class="section-title">3. AI Threat Analysis</div>
+    <div class="content" style="background: #fffbeb; border-left: 4px solid #fbbf24; padding: 10px;">
+        <?= safe($ai) ?>
     </div>
     <?php } ?>
 
     <!-- LOGS -->
     <?php if (!empty($logs)) { ?>
-    <div class="block">
-        <div class="h">TECHNICAL EVIDENCE (SIEM LOGS)</div>
-        <div class="logs"><?= htmlspecialchars($logs) ?></div>
+    <div class="section-title">4. Technical Evidence</div>
+    <div class="terminal-window">
+        <div class="terminal-header">ROOT@SOC-SCANNER:~# nmap -sV <?= $target ?></div>
+<?= htmlspecialchars($logs) ?>
     </div>
     <?php } ?>
 
     <!-- FOOTER -->
     <div class="footer">
-        SOC Operations Center · Automated Security Intelligence Report
+        SOC Operations Center &bull; Page {PAGE_NUM} of {PAGE_COUNT}
     </div>
-
-</div>
 
 </body>
 </html>
@@ -301,13 +201,10 @@ body {
 
 $html = ob_get_clean();
 
-/* =========================
-   DOMPDF
-========================= */
-
 $options = new Options();
 $options->set('isHtml5ParserEnabled', true);
-$options->set('isRemoteEnabled', true);
+$options->set('isRemoteEnabled', false);
+$options->set('defaultFont', 'Helvetica');
 
 $dompdf = new Dompdf($options);
 $dompdf->loadHtml($html);
