@@ -8,19 +8,22 @@ $userName = $_SESSION['user_name'] ?? 'Auditor';
 $avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($userName) . "&background=0ea5e9&color=fff&bold=true&size=128";
 ?>
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es" class="dark"> <!-- Clase dark por defecto -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CyberPyme SOC - Command Center</title>
 
-    <!-- FAVICON PROFESIONAL SVG -->
+    <!-- FAVICON SVG -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%230ea5e9;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%230284c7;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M50 5 L85 20 V50 C85 75 50 95 50 95 C50 95 15 75 15 50 V20 Z' fill='url(%23g)' stroke='%23ffffff' stroke-width='2'/%3E%3Cpath d='M50 25 L65 35 V55 C65 65 50 75 50 75 C50 75 35 65 35 55 V35 Z' fill='%23ffffff' opacity='0.9'/%3E%3C/svg%3E">
 
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Configuración de Tailwind -->
     <script>
         tailwind.config = {
-            darkMode: 'class',
+            darkMode: 'class', // IMPORTANTE: Usa la clase 'dark' en el HTML
             theme: {
                 extend: {
                     colors: { brand: '#0ea5e9' }
@@ -32,9 +35,21 @@ $avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($userName) . "&back
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/assets/css/style.css">
     
-    <!-- Scripts: Languages primero, luego Main -->
+    <!-- Scripts: Sin defer para asegurar disponibilidad inmediata -->
     <script src="/assets/js/languages.js"></script>
-    <script src="/assets/js/main.js" defer></script>
+    <script src="/assets/js/main.js"></script>
+
+    <!-- Script para aplicar tema inmediatamente antes de pintar el body -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('soc_theme') || 'dark';
+            if (savedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
 </head>
 
 <body class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-300">
@@ -60,7 +75,7 @@ $avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($userName) . "&back
 
         <div class="flex items-center gap-2 sm:gap-4">
 
-            <!-- TRADUCTOR MANUAL (Limpio y sin estilos raros) -->
+            <!-- TRADUCTOR -->
             <div class="relative group">
                 <button class="flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-black uppercase transition-all
                                bg-slate-100 border-slate-200 text-slate-700
@@ -73,19 +88,19 @@ $avatarUrl = "https://ui-avatars.com/api/?name=" . urlencode($userName) . "&back
                             bg-white border-slate-200 text-slate-800
                             dark:bg-slate-800 dark:border-white/10 dark:text-white z-[110]">
                     <div class="px-3 py-1 mb-1 border-b border-slate-100 dark:border-white/5 text-[8px] font-bold text-slate-400 uppercase">Idioma</div>
-                    <!-- CORRECCIÓN: Usar changeLanguage para conectar con main.js -->
                     <button onclick="changeLanguage('es')" class="w-full text-left px-3 py-2 text-[10px] font-bold uppercase rounded-lg hover:bg-brand hover:text-white transition-colors">Español</button>
                     <button onclick="changeLanguage('en')" class="w-full text-left px-3 py-2 text-[10px] font-bold uppercase rounded-lg hover:bg-brand hover:text-white transition-colors">English</button>
                     <button onclick="changeLanguage('ca')" class="w-full text-left px-3 py-2 text-[10px] font-bold uppercase rounded-lg hover:bg-brand hover:text-white transition-colors">Català</button>
                 </div>
             </div>
 
-            <!-- THEME TOGGLE (Icono único que cambia con CSS) -->
+            <!-- THEME TOGGLE -->
             <button onclick="toggleTheme()" class="w-10 h-10 flex items-center justify-center rounded-lg border transition-all
                                                  bg-slate-100 border-slate-200 text-brand
                                                  dark:bg-white/5 dark:border-white/10 hover:bg-brand/10">
-                <!-- Tailwind se encarga de mostrar uno u otro según la clase 'dark' -->
+                <!-- Luna visible en modo claro (sin clase dark en html) -->
                 <i class="fas fa-moon block dark:hidden"></i>
+                <!-- Sol visible en modo oscuro (con clase dark en html) -->
                 <i class="fas fa-sun hidden dark:block text-yellow-400"></i>
             </button>
 
