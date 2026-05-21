@@ -95,5 +95,3 @@ ProjecteFinal_G7/
 ## 📄 Llicència
 
 Aquest projecte està sota la Llicència MIT. Consulta el fitxer [LICENSE](https://github.com/AlbertoTrujillo-ITB2425/ProjecteFinal_G7/blob/main/LICENSE) per a més detalls.
-
-```
