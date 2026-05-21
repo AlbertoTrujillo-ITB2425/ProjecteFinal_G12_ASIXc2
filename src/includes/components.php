@@ -1,11 +1,26 @@
 <?php
 
 /**
- * Verifica si un contenedor está activo conectando a su puerto
+ * Obtiene la carga de la CPU (Muestra en crudo para cálculo diferencial)
+ */
+function getRealCPUUsage() {
+    if (file_exists('/proc/stat')) {
+        $str = file_get_contents('/proc/stat');
+        $lines = explode("\n", $str);
+        $stats = explode(" ", preg_replace("/\s+/", " ", trim($lines[0])));
+        $iron = array_slice($stats, 1, 4);
+        $total = array_sum($iron);
+        $idle = $iron[3];
+        
+        return ["total" => $total, "idle" => $idle];
+    }
+    return ["total" => 0, "idle" => 0];
+}
+
+/**
+ * Verifica si un contenedor está activo conectando a su puerto TCP
  */
 function checkContainer($host, $port, $timeout = 0.5) {
-    // En entornos Docker con red bridge, a veces 'localhost' no funciona.
-    // Si esto falla, puede ser necesario usar la IP interna del contenedor o el nombre de host si están en la misma red.
     $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
     if ($fp) { 
         fclose($fp); 
@@ -15,8 +30,7 @@ function checkContainer($host, $port, $timeout = 0.5) {
 }
 
 /**
- * Define la infraestructura conocida. 
- * NOTA: Esta lista debe coincidir con tus nombres de contenedores en docker-compose.yml
+ * Define la infraestructura conocida del SOC. 
  */
 function getInfrastructure() {
     return [
@@ -29,18 +43,50 @@ function getInfrastructure() {
         ['host' => 's7_wazuh', 'port' => 1514, 'name' => 'Wazuh Manager', 'os' => 'CentOS'],
         ['host' => 's9_scanner', 'port' => 9000, 'name' => 'Network Scanner', 'os' => 'PHP-Alpine'],
         ['host' => 's10_postfix', 'port' => 25, 'name' => 'Mail Server', 'os' => 'Ubuntu'],
-        ['host' => 's11_snort', 'port' => 25, 'name' => 'IDS Snort', 'os' => 'Debian']
+        ['host' => 's11_snort', 'port' => 0, 'name' => 'IDS Snort', 'os' => 'Debian'] // Puerto corregido a 0 (Monitoreo exclusivo por API de Docker)
     ];
 }
 
 /**
- * Obtiene el estado real de cada nodo
+ * Obtiene el estado real de cada nodo utilizando sockets TCP o la API nativa de Docker
  */
 function getNodeStatus($infrastructure) {
     $list = [];
     foreach ($infrastructure as $node) {
-        // Intentamos conectar al puerto específico
-        $online = checkContainer($node['host'], $node['port']);
+        $online = false;
+
+        // Forzar chequeo por Socket de Docker para servicios críticos o pasivos (Snort y OpenLDAP)
+        if ($node['host'] === 's11_snort' || $node['host'] === 's6_openldap') {
+            $socket = @fsockopen("unix:///var/run/docker.sock", -1, $errno, $errstr, 0.5);
+            
+            if ($socket) {
+                // Usamos HTTP/1.1 y forzamos el cierre de conexión para asegurar una lectura limpia de la API
+                $request = "GET /containers/{$node['host']}/json HTTP/1.1\r\n";
+                $request .= "Host: localhost\r\n";
+                $request .= "Connection: close\r\n\r\n";
+                fwrite($socket, $request);
+                
+                $response = "";
+                while (!feof($socket)) {
+                    $response .= fgets($socket, 1024);
+                }
+                fclose($socket);
+                
+                // Regex mejorada: busca tanto el estado estructurado como las llaves planas del estado de Docker
+                if (preg_match('/"Running"\s*:\s*true/i', $response) || preg_match('/"status"\s*:\s*"running"/i', $response)) {
+                    $online = true;
+                }
+            } else {
+                // FALLBACK DE SEGURIDAD: Si el socket de Docker no tiene permisos de lectura de manera temporal,
+                // intentamos un chequeo de red tradicional para OpenLDAP en lugar de dar Offline directamente.
+                if ($node['host'] === 's6_openldap') {
+                    $online = checkContainer($node['host'], 389);
+                }
+            }
+        } else {
+            // Validación por puertos tradicional para el resto de la infraestructura
+            $online = checkContainer($node['host'], $node['port']);
+        }
         
         $list[] = [
             "host"   => $node['host'],
@@ -55,13 +101,13 @@ function getNodeStatus($infrastructure) {
 }
 
 /**
- * Calcula el porcentaje de salud basado en nodos activos
+ * Calcula la integridad del sistema basada en nodos activos
  */
 function calculateHealth($active, $total) {
     return $total > 0 ? round(($active / $total) * 100) : 0;
 }
 
-/* ---- COMPONENTES HTML REUTILIZABLES (Estilo Glass Global) ---- */
+/* ---- COMPONENTES HTML REUTILIZABLES (Estilo Glass Dashboard) ---- */
 $glassClass = "bg-glass border border-glass rounded-xl shadow-lg";
 
 function panelMetric($title, $value, $icon = "fa-server", $colorClass = "text-blue-400") {
@@ -95,7 +141,9 @@ function panelLink($title, $desc, $url, $icon = "fa-link", $iconBg = "bg-nav") {
 function panelTable($title, $nodes) {
     global $glassClass;
     $html = "<div class='$glassClass p-6 flex flex-col h-full'>";
-    $html .= "<h3 class='text-[11px] text-muted font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2'><i class='fas fa-network-wired text-blue-500'></i> $title</h3>";
+    if (!empty($title)) {
+        $html .= "<h3 class='text-[11px] text-muted font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2'><i class='fas fa-network-wired text-blue-500'></i> $title</h3>";
+    }
     $html .= "<div class='overflow-x-auto rounded-lg border border-glass bg-nav'><table class='w-full text-left border-collapse'>";
     $html .= "<thead><tr class='border-b border-glass text-[10px] uppercase tracking-wider text-muted'>
                 <th class='p-3 font-semibold'>Host</th>
@@ -136,107 +184,66 @@ function panelHealth($health) {
 }
 
 /**
- * OBTENER LOGS REALES DE WAHU Y SNORT
- * Reemplaza los eventos estáticos por datos reales de los contenedores
+ * OBTENER LOGS REALES DE WAZUH Y SNORT (Estructura de Datos Limpia para JSON)
  */
 function getSecurityLogs() {
     $logs = [];
     
-    // 1. Leer últimos alertas de Wazuh (JSON)
+    // 1. Obtener logs de Wazuh desde su API por Socket
     try {
-        // Ejecutamos tail en el contenedor s7_wazuh
-        $wazuhCmd = "docker exec s7_wazuh tail -n 5 /var/ossec/logs/alerts/alerts.json 2>/dev/null";
-        $wazuhOutput = shell_exec($wazuhCmd);
-        
-        if ($wazuhOutput && !empty(trim($wazuhOutput))) {
-            $lines = explode("\n", trim($wazuhOutput));
-            foreach ($lines as $line) {
-                $data = json_decode($line, true);
-                if ($data && isset($data['rule']['description'])) {
-                    $logs[] = [
-                        'source' => 'WAZUH',
-                        'message' => htmlspecialchars($data['rule']['description']),
-                        'time' => isset($data['timestamp']) ? date('H:i:s', strtotime($data['timestamp'])) : '--:--:--',
-                        'level' => isset($data['rule']['level']) ? $data['rule']['level'] : '0',
-                        'class' => 'text-yellow-400'
-                    ];
+        $socket = @fsockopen("unix:///var/run/docker.sock", -1, $errno, $errstr, 0.5);
+        if ($socket) {
+            $request = "GET /containers/s7_wazuh/logs?stdout=true&tail=5 HTTP/1.0\r\n\r\n";
+            fwrite($socket, $request);
+            $wazuhOutput = "";
+            while (!feof($socket)) { $wazuhOutput .= fgets($socket, 1024); }
+            fclose($socket);
+            
+            if (!empty($wazuhOutput)) {
+                $lines = explode("\n", $wazuhOutput);
+                foreach ($lines as $line) {
+                    $startPos = strpos($line, '{"timestamp"');
+                    if ($startPos !== false) {
+                        $jsonStr = substr($line, $startPos);
+                        $data = json_decode(trim($jsonStr), true);
+                        if ($data && isset($data['rule']['description'])) {
+                            $logs[] = [
+                                'source' => 'WAZUH',
+                                'message' => htmlspecialchars($data['rule']['description']),
+                                'time' => isset($data['timestamp']) ? date('H:i:s', strtotime($data['timestamp'])) : date('H:i:s'),
+                                'class' => 'text-yellow-400',
+                                'icon' => 'fa-bug'
+                            ];
+                        }
+                    }
                 }
             }
         }
-    } catch (\Exception $e) { /* Silenciar errores */ }
+    } catch (\Exception $e) {}
 
-    // 2. Leer últimas alertas de Snort
+    // 2. Obtener logs de Snort locales mapeados de forma limpia
     try {
-        $snortCmd = "docker exec s11_snort tail -n 5 /var/log/snort/alert 2>/dev/null";
-        $snortOutput = shell_exec($snortCmd);
-        
-        if ($snortOutput && !empty(trim($snortOutput))) {
-            $lines = explode("\n", trim($snortOutput));
-            foreach ($lines as $line) {
-                if (!empty($line)) {
-                    $time = '--:--:--';
-                    // Intentar extraer timestamp simple si existe
-                    if (preg_match('/\[(.*?)\]/', $line, $matches)) {
-                         $time = substr($matches[1], -8, 8); 
-                    }
-                    
+        $snortLogPath = '/var/log/snort/alert';
+        if (file_exists($snortLogPath)) {
+            $fileLines = file($snortLogPath);
+            $lastLines = array_slice($fileLines, -5);
+            foreach ($lastLines as $line) {
+                if (!empty(trim($line))) {
+                    $time = date('H:i:s');
+                    if (preg_match('/(\d{2}:\d{2}:\d{2})/', $line, $matches)) { $time = $matches[1]; }
+                    $cleanMessage = preg_replace('/\[\*\*\]|\[\d+:\d+:\d+\]/', '', $line);
                     $logs[] = [
                         'source' => 'SNORT',
-                        'message' => htmlspecialchars(substr($line, 0, 80)) . '...',
+                        'message' => htmlspecialchars(substr(trim($cleanMessage), 0, 90)),
                         'time' => $time,
-                        'level' => 'HIGH',
-                        'class' => 'text-red-400'
+                        'class' => 'text-red-400',
+                        'icon' => 'fa-fire'
                     ];
                 }
             }
         }
-    } catch (\Exception $e) { /* Silenciar errores */ }
+    } catch (\Exception $e) {}
 
-    // Ordenar: más recientes primero (asumiendo que tail trae los últimos, invertimos para mostrar el último arriba si queremos cronológico inverso)
-    // Pero como tail -n 5 trae los últimos 5, el último elemento del array es el más reciente.
-    // Para mostrarlo arriba en la UI, invertimos el array.
     return array_reverse($logs);
-}
-
-/**
- * Renderiza los eventos del sistema usando datos reales
- */
-function panelEvents() {
-    global $glassClass;
-    
-    $securityLogs = getSecurityLogs();
-    
-    $html = "
-    <div class='$glassClass p-6'>
-        <h3 class='text-[11px] text-muted font-bold uppercase tracking-[0.2em] mb-4'><i class='fas fa-terminal text-blue-500 mr-2'></i>SOC Events Feed</h3>";
-        
-    if (empty($securityLogs)) {
-        $html .= "
-        <div class='space-y-3 font-mono text-[10px] text-center py-4 text-slate-500 italic'>
-            <i class='fas fa-info-circle mr-1'></i> Esperando eventos de seguridad...
-        </div>";
-    } else {
-        $html .= "<div class='space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar'>";
-        foreach ($securityLogs as $log) {
-            $icon = $log['source'] === 'WAZUH' ? 'fa-bug text-purple-400' : 'fa-fire text-orange-400';
-            $html .= "
-            <div class='flex gap-3 items-start p-2 rounded bg-nav border border-glass hover:bg-glass/80 transition-colors'>
-                <div class='mt-0.5'>
-                    <i class='fas $icon text-[10px]'></i>
-                </div>
-                <div class='flex-1 min-w-0'>
-                    <div class='flex justify-between items-center mb-1'>
-                        <span class='text-[9px] font-bold uppercase {$log['class']}'>{$log['source']}</span>
-                        <span class='text-[9px] text-slate-500 font-mono'>{$log['time']}</span>
-                    </div>
-                    <p class='text-[10px] text-slate-300 leading-tight break-words'>{$log['message']}</p>
-                </div>
-            </div>";
-        }
-        $html .= "</div>";
-    }
-    
-    $html .= "</div>";
-    return $html;
 }
 ?>

@@ -1,32 +1,32 @@
 /* --- CONFIGURACIÓN DE FUENTES Y VARIABLES --- */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root { 
-    /* Colores de Acento */
-    --accent-primary: #0ea5e9; 
+    /* Colores de Acento Estilo CyberSOC */
+    --accent-primary: #3b82f6; 
     --accent-secondary: #10b981;
+    --accent-glow: rgba(59, 130, 246, 0.15);
 
-    /* MODO OSCURO (Default) */
-    --bg-main: #020617;        
-    --bg-nav: rgba(15, 23, 42, 0.8);
-    --text-main: #f8fafc;      
-    --text-muted: #94a3b8;     
-    --glass-bg: rgba(255, 255, 255, 0.02);
-    --glass-border: rgba(255, 255, 255, 0.05);
-    --grid-color: rgba(255, 255, 255, 0.05);
-    --dropdown-bg: #0f172a;
+    /* MODO OSCURO PROFESIONAL (Paleta Slate/Zinc de Ciberseguridad) */
+    --bg-main: #030712;        
+    --bg-nav: rgba(11, 17, 32, 0.75);
+    --text-main: #f3f4f6;      
+    --text-muted: #6b7280;     
+    --glass-bg: rgba(15, 23, 42, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.04);
+    --grid-color: rgba(255, 255, 255, 0.015);
+    --dropdown-bg: #0b1120;
 }
 
-/* Clase para modo claro (usada por JS/Tailwind) */
 .light-mode { 
-    /* MODO CLARO */
+    /* MODO CLARO OPTIMIZADO */
     --bg-main: #f8fafc;        
-    --bg-nav: rgba(255, 255, 255, 0.8);
+    --bg-nav: rgba(255, 255, 255, 0.85);
     --text-main: #0f172a;      
-    --text-muted: #475569;     
-    --glass-bg: rgba(0, 0, 0, 0.02);
-    --glass-border: rgba(0, 0, 0, 0.1);
-    --grid-color: rgba(0, 0, 0, 0.05);
+    --text-muted: #64748b;     
+    --glass-bg: rgba(255, 255, 255, 0.6);
+    --glass-border: rgba(15, 23, 42, 0.08);
+    --grid-color: rgba(15, 23, 42, 0.02);
     --dropdown-bg: #ffffff;
 }
 
@@ -39,46 +39,47 @@ body {
     color: var(--text-main) !important;
     transition: background-color 0.4s ease, color 0.4s ease; 
     overflow-x: hidden; 
+    letter-spacing: -0.01em;
 }
 
-/* Transiciones suaves para los textos */
+/* Transiciones suaves globales */
 h1, h2, h3, h4, h5, h6, p, span, a, button, label {
-    transition: color 0.4s ease, background-color 0.4s ease, border-color 0.4s ease;
+    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
 }
 
-/* --- COMPONENTES DE DISEÑO --- */
+/* --- COMPONENTES MODERNOS (GLASS PANELS COMPACTOS) --- */
 .glass-panel {
     background: var(--glass-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
-    border-radius: 1.5rem;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 1rem; /* Bordes compactos estilo dashboard industrial corporativo */
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     position: relative;
     overflow: hidden;
 }
 
 .light-mode .glass-panel { 
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1); 
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); 
 }
 
 .glass-panel:hover { 
-    border-color: var(--accent-primary); 
-    transform: translateY(-5px); 
-    box-shadow: 0 20px 40px -10px rgba(14, 165, 233, 0.2); 
+    border-color: rgba(59, 130, 246, 0.4); 
+    transform: translateY(-2px); 
+    box-shadow: 0 12px 30px -10px var(--accent-glow); 
 }
 
-/* --- OVERLAYS Y DECORACIÓN --- */
+/* --- OVERLAYS Y DECORACIÓN DE FONDO --- */
 .grid-overlay { 
     position: fixed; 
     inset: 0; 
     z-index: -1; 
     background-image: linear-gradient(to right, var(--grid-color) 1px, transparent 1px), 
                       linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px); 
-    background-size: 40px 40px; 
+    background-size: 50px 50px; 
     pointer-events: none; 
-    mask-image: linear-gradient(to bottom, black 40%, transparent 100%); 
-    -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+    mask-image: radial-gradient(circle at top, black 60%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle at top, black 60%, transparent 100%);
 }
 
 .bg-glow { 
@@ -87,97 +88,87 @@ h1, h2, h3, h4, h5, h6, p, span, a, button, label {
     left: -10%; 
     width: 50vw; 
     height: 50vw; 
-    background: radial-gradient(circle, rgba(14,165,233,0.05) 0%, rgba(0,0,0,0) 70%); 
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.03) 0%, rgba(0,0,0,0) 70%); 
     z-index: -1; 
     pointer-events: none; 
 }
 
-/* --- UTILIDADES --- */
-.mono-tech { font-family: 'JetBrains Mono', monospace; }
+.mono-tech { 
+    font-family: 'JetBrains Mono', monospace; 
+    font-weight: 500;
+}
 
 .text-gradient { 
-    background: linear-gradient(to right, #0ea5e9, #38bdf8); 
+    background: linear-gradient(to right, #3b82f6, #60a5fa); 
     -webkit-background-clip: text; 
     -webkit-text-fill-color: transparent; 
     background-clip: text;
     color: transparent;
 }
 
-/* --- SCROLLBAR PERSONALIZADO --- */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+/* --- SCROLLBAR COMPACTO --- */
+.custom-scrollbar::-webkit-scrollbar { 
+    width: 4px; 
 }
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+.custom-scrollbar::-webkit-scrollbar-track { 
+    background: transparent; 
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: var(--glass-border);
-    border-radius: 20px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: var(--accent-primary);
+.light-mode .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { 
+    background-color: var(--accent-primary); 
 }
 
-/* --- DROPDOWN DE IDIOMA (Estilo propio) --- */
+/* --- DROPDOWNS DE IDIOMA Y USUARIO --- */
 .lang-container { 
     position: relative; 
     z-index: 1000; 
 }
 
-.lang-dropdown { 
+.lang-dropdown, .user-menu .dropdown { 
     visibility: hidden; 
     opacity: 0; 
     position: absolute; 
-    top: 120%; 
-    right: 0; 
     background: var(--dropdown-bg); 
     border: 1px solid var(--glass-border); 
-    border-radius: 1rem; 
+    border-radius: 0.75rem; 
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); 
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lang-dropdown {
+    top: 120%; 
+    right: 0; 
     width: 160px; 
     transform: translateY(-10px); 
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); 
     padding: 0.5rem;
 }
 
-.light-mode .lang-dropdown { 
-    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); 
+.user-menu .dropdown {
+    transform: translateY(10px);
 }
 
-.lang-container:hover .lang-dropdown { 
+.light-mode .lang-dropdown, .light-mode .user-menu .dropdown { 
+    box-shadow: 0 15px 20px -5px rgba(0,0,0,0.05); 
+}
+
+.lang-container:hover .lang-dropdown, .user-menu:hover .dropdown { 
     visibility: visible; 
     opacity: 1; 
     transform: translateY(0); 
 }
 
-/* --- DROPDOWN DE USUARIO --- */
-.user-menu .dropdown {
-    background: var(--dropdown-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 1rem;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(10px);
-    transition: all .25s ease;
-    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
-}
-
-.light-mode .user-menu .dropdown {
-    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-}
-
-.user-menu:hover .dropdown {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-}
-
 /* --- ANIMACIONES --- */
 @keyframes fade-in {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-    animation: fade-in 0.5s ease-out forwards;
+.animate-fade-in { 
+    animation: fade-in 0.4s ease-out forwards; 
 }

@@ -21,8 +21,20 @@ if (empty($userMessage)) {
     exit;
 }
 
-// CONFIGURACIÓN IDÉNTICA A LA DE SCANNER/AI_ANALYSIS
-$apiKey = "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"; // Tu clave actual
+// --- CARGA SEGURA DE API KEY ---
+$apiKey = getenv('GROQ_API_KEY');
+
+if (!$apiKey && file_exists(__DIR__ . '/config.local.php')) {
+    $localConfig = include(__DIR__ . '/config.local.php');
+    $apiKey = $localConfig['GROQ_API_KEY'] ?? '';
+}
+
+if (!$apiKey) {
+    http_response_code(500);
+    echo json_encode(["error" => "No se ha configurado la API Key de Groq."]);
+    exit;
+}
+
 $model = "llama-3.3-70b-versatile"; // El mismo modelo
 
 // Construir mensajes para el contexto

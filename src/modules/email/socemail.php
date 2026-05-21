@@ -130,19 +130,19 @@ function parseSnortAlerts(string $path, int $limit = 100): array {
     return array_reverse(array_slice($logs, 0, $limit));
 }
 
+// Carga estática inicial para evitar saltos visuales en el primer milisegundo
 $mails = parseMboxFile($MAIL_MBOX_PATH);
 $snortLogs = parseSnortAlerts($SNORT_ALERT_PATH, 100);
 
 $unreadCount = count($mails);
 $alertCount = count(array_filter($snortLogs, fn($l) => in_array($l['sev'], ['HIGH', 'MEDIUM'], true)));
 
-// HEADER DEL PROYECTO (Ruta relativa corregida)
+// HEADER DEL PROYECTO
 include '../../includes/header.php';
 ?>
 
 <main class="max-w-7xl mx-auto px-6 py-10 space-y-8 flex-grow w-full relative z-10 text-slate-200">
     
-    <!-- Título y Estado -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-glass pb-5">
         <div>
             <h1 class="text-3xl font-black tracking-widest uppercase text-white">
@@ -156,15 +156,14 @@ include '../../includes/header.php';
         </div>
     </div>
 
-    <!-- Indicadores -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div class="bg-glass border border-glass rounded-xl p-6 shadow-lg hover:border-blue-500/50 transition-all">
             <p class="text-[10px] text-muted font-bold uppercase tracking-widest mb-2"><i class="fas fa-inbox text-blue-500 mr-2"></i>Correos</p>
-            <p class="text-3xl font-black text-blue-400"><?= $unreadCount ?></p>
+            <p id="metric-mails" class="text-3xl font-black text-blue-400"><?= $unreadCount ?></p>
         </div>
         <div class="bg-glass border border-glass rounded-xl p-6 shadow-lg hover:border-amber-500/50 transition-all">
             <p class="text-[10px] text-muted font-bold uppercase tracking-widest mb-2"><i class="fas fa-shield-virus text-amber-500 mr-2"></i>Alertas IDS</p>
-            <p class="text-3xl font-black text-amber-400"><?= $alertCount ?></p>
+            <p id="metric-alerts" class="text-3xl font-black text-amber-400"><?= $alertCount ?></p>
         </div>
         <div class="bg-glass border border-glass rounded-xl p-6 shadow-lg col-span-2 md:col-span-1">
             <p class="text-[10px] text-muted font-bold uppercase tracking-widest mb-2"><i class="fas fa-folder text-emerald-500 mr-2"></i>Ruta Mail</p>
@@ -176,15 +175,13 @@ include '../../includes/header.php';
         </div>
     </div>
 
-    <!-- Paneles de Datos -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        <!-- Panel Correos -->
         <div class="bg-glass border border-glass rounded-2xl shadow-xl flex flex-col h-[600px]">
             <div class="p-6 border-b border-glass bg-nav rounded-t-2xl">
                 <h3 class="text-xs font-black uppercase tracking-widest text-blue-400"><i class="fas fa-envelope mr-2"></i>Bandeja de Entrada</h3>
             </div>
-            <div class="overflow-y-auto p-2">
+            <div id="mbox-container" class="overflow-y-auto p-2 custom-scrollbar">
                 <?php if (empty($mails)): ?>
                     <p class="p-6 text-muted text-xs text-center font-mono">No hay correos en el sistema.</p>
                 <?php else: ?>
@@ -204,12 +201,11 @@ include '../../includes/header.php';
             </div>
         </div>
 
-        <!-- Panel Snort Logs -->
         <div class="bg-glass border border-glass rounded-2xl shadow-xl flex flex-col h-[600px]">
             <div class="p-6 border-b border-glass bg-nav rounded-t-2xl">
                 <h3 class="text-xs font-black uppercase tracking-widest text-amber-400"><i class="fas fa-satellite-dish mr-2"></i>Monitor Snort / IDS</h3>
             </div>
-            <div class="overflow-y-auto p-2">
+            <div id="snort-container" class="overflow-y-auto p-2 custom-scrollbar">
                 <?php if (empty($snortLogs)): ?>
                     <p class="p-6 text-muted text-xs text-center font-mono">No hay alertas de IDS.</p>
                 <?php else: ?>
@@ -232,5 +228,80 @@ include '../../includes/header.php';
         
     </div>
 </main>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const metricMails = document.getElementById('metric-mails');
+    const metricAlerts = document.getElementById('metric-alerts');
+    const mboxContainer = document.getElementById('mbox-container');
+    const snortContainer = document.getElementById('snort-container');
+
+    // Mapeo dinámico de colores de severidad de Snort para JS
+    function getSevColorJS(sev) {
+        return {
+            'HIGH': 'bg-red-500/10 text-red-400 border-red-500/30',
+            'MEDIUM': 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+            'LOW': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+        }[sev] || 'bg-sky-500/10 text-sky-400 border-sky-500/30';
+    }
+
+    function fetchModuleTelemetry() {
+        fetch('email_telemetry.php')
+            .then(res => res.json())
+            .then(data => {
+                // Actualizar contadores tácticos principales
+                metricMails.textContent = data.unreadCount;
+                metricAlerts.textContent = data.alertCount;
+
+                // 1. Sincronizar Bandeja de Entrada de Postfix
+                if (data.mails.length === 0) {
+                    mboxContainer.innerHTML = '<p class="p-6 text-muted text-xs text-center font-mono">No hay correos en el sistema.</p>';
+                } else {
+                    let mailHtml = '';
+                    data.mails.forEach(m => {
+                        mailHtml += `
+                        <div class="p-4 border-b border-glass hover:bg-white/5 transition-colors cursor-pointer animate-fade-in">
+                            <div class="flex justify-between items-start mb-2">
+                                <p class="text-sm font-bold text-slate-200 truncate pr-4">${m.from}</p>
+                                <p class="text-[10px] font-mono text-muted whitespace-nowrap">${m.date}</p>
+                            </div>
+                            <p class="text-xs text-muted mb-3 truncate">${m.subject}</p>
+                            <span class="text-[9px] font-black tracking-widest uppercase px-2 py-1 rounded border ${m.tagClass}">
+                                ${m.tagLabel}
+                            </span>
+                        </div>`;
+                    });
+                    mboxContainer.innerHTML = mailHtml;
+                }
+
+                // 2. Sincronizar logs e impactos de Snort
+                if (data.snortLogs.length === 0) {
+                    snortContainer.innerHTML = '<p class="p-6 text-muted text-xs text-center font-mono">No hay alertas de IDS.</p>';
+                } else {
+                    let snortHtml = '';
+                    data.snortLogs.forEach(l => {
+                        snortHtml += `
+                        <div class="p-4 border-b border-glass hover:bg-white/5 transition-colors animate-fade-in">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-[10px] font-mono text-muted">${l.ts}</span>
+                                <span class="text-[9px] font-black tracking-widest uppercase px-2 py-1 rounded border ${getSevColorJS(l.sev)}">
+                                    ${l.sev}
+                                </span>
+                            </div>
+                            <div class="text-xs text-slate-300 font-mono break-words leading-relaxed">
+                                ${l.msg}
+                            </div>
+                        </div>`;
+                    });
+                    snortContainer.innerHTML = snortHtml;
+                }
+            })
+            .catch(err => console.error("Error en refresco asíncrono de auditoría:", err));
+    }
+
+    // Intervalo de consultas continuas cada 2 segundos sin recargar la página
+    setInterval(fetchModuleTelemetry, 2000);
+});
+</script>
 
 <?php include '../../includes/footer.php'; ?>

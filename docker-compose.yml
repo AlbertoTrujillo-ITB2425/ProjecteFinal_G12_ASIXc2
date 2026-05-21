@@ -1,12 +1,7 @@
 version: '3.8'
 
-# =========================================================================
-# PROYECTO: CYBERPYME SOC DASHBOARD v3.0 - FULL INFRASTRUCTURE (FIXED)
-# =========================================================================
-
 services:
 
-  # --- S1: GATEWAY & LOAD BALANCER (NGINX) ---
   s1_nginx:
     image: nginx:1.24-alpine
     container_name: s1_nginx
@@ -28,7 +23,6 @@ services:
       - s3_node
       - s8_grafana
 
-  # --- S2 & S3: WEB NODES (PHP-FPM CLUSTER) ---
   s2_node:
     build: { context: ., dockerfile: Dockerfile }
     container_name: s2_node
@@ -37,13 +31,23 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_USER=${DB_USER}
       - DB_NAME=${DB_NAME}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - MAIL_MBOX_PATH=/var/mail/root
+      - SNORT_ALERT_PATH=/var/log/snort/alert
     volumes:
       - ./src:/var/www/html
-      - php_sessions:/tmp  # <--- COMPARTIR SESIONES
+      - php_sessions:/tmp
+      - mail_data:/var/mail:ro
+      - ./snort_logs:/var/log/snort:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - net_private
       - net_public
     restart: always
+    depends_on:
+      - s4_mariadb
+      - s5_redis
+      - s10_postfix
 
   s3_node:
     build: { context: ., dockerfile: Dockerfile }
@@ -53,15 +57,24 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_USER=${DB_USER}
       - DB_NAME=${DB_NAME}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - MAIL_MBOX_PATH=/var/mail/root
+      - SNORT_ALERT_PATH=/var/log/snort/alert
     volumes:
       - ./src:/var/www/html
-      - php_sessions:/tmp  # <--- COMPARTIR SESIONES
+      - php_sessions:/tmp
+      - mail_data:/var/mail:ro
+      - ./snort_logs:/var/log/snort:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - net_private
       - net_public
     restart: always
+    depends_on:
+      - s4_mariadb
+      - s5_redis
+      - s10_postfix
 
-  # --- S4: DATABASE (MariaDB) ---
   s4_mariadb:
     image: mariadb:10.11
     container_name: s4_mariadb
@@ -76,8 +89,12 @@ services:
       - net_private
     restart: always
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # --- S5: REDIS (Cache & Sessions) ---
   s5_redis:
     image: redis:7-alpine
     container_name: s5_redis
@@ -87,23 +104,33 @@ services:
     networks:
       - net_private
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # --- S6: DIRECTORY SERVICE (OpenLDAP) ---
   s6_openldap:
     image: osixia/openldap:1.5.0
     container_name: s6_openldap
     environment:
-      - LDAP_ORGANISATION="CyberAudit Group 7"
-      - LDAP_DOMAIN="g7.local"
+      - LDAP_ORGANISATION=CyberAudit Group 7
+      - LDAP_DOMAIN=g7.local
       - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      - LDAP_TLS=false
     volumes:
       - ./ldap_data:/var/lib/ldap
       - ./ldap_config:/etc/ldap/slapd.d
     networks:
       - net_private
+      - net_public
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -b '' -s base '(objectclass=*)' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-  # --- S7: SIEM MANAGER (Wazuh) ---
   s7_wazuh:
     image: wazuh/wazuh-manager:4.7.2
     container_name: s7_wazuh
@@ -116,7 +143,6 @@ services:
       - net_private
     restart: always
 
-  # --- S8: TELEMETRY (Grafana) ---
   s8_grafana:
     image: grafana/grafana:10.2.3
     container_name: s8_grafana
@@ -135,6 +161,7 @@ services:
       - GF_AUTH_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GF_AUTH_GOOGLE_ALLOW_SIGN_UP=true
       - GF_AUTH_GOOGLE_ALLOWED_DOMAINS=itb.cat
+      - GF_SERVER_ENABLE_GZIP=true
     volumes:
       - ./grafana_data:/var/lib/grafana
     networks:
@@ -142,13 +169,12 @@ services:
       - net_public
     restart: always
 
-  # --- S9: SECURITY SCANNER (Async PHP) ---
   s9_scanner:
     build: .
     container_name: s9_scanner
     volumes:
       - ./src:/var/www/html
-      - php_sessions:/tmp  # <--- COMPARTIR SESIONES CON NODOS WEB
+      - php_sessions:/tmp
     env_file: .env
     networks:
       - net_public
@@ -157,33 +183,48 @@ services:
       - NET_RAW
       - NET_ADMIN
     restart: always
+    depends_on:
+      - s4_mariadb
 
-  # --- S10: MAIL GATEWAY (Postfix) ---
   s10_postfix:
     build: { context: ., dockerfile: Dockerfile.s10_s11 }
     container_name: s10_postfix
     ports:
       - "25:25"
       - "587:587"
+    volumes:
+      - mail_data:/var/mail
+    environment:
+      - MAIL_MBOX_PATH=/var/mail/root
     networks:
       - net_private
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/25' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # --- S11: IDS/IPS (Snort) ---
   s11_snort:
     build: { context: ., dockerfile: Dockerfile.s10_s11 }
     container_name: s11_snort
     command: snort -A console -i eth0 -c /etc/snort/snort.conf
     volumes:
       - ./snort_logs:/var/log/snort
+    environment:
+      - SNORT_ALERT_PATH=/var/log/snort/alert
     cap_add:
       - NET_ADMIN
       - NET_RAW
     networks:
       - net_private
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep snort || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-  # --- S12: AI ENGINE (Ollama) ---
   s12_ollama:
     image: ollama/ollama:latest
     container_name: s12_ollama
@@ -199,14 +240,12 @@ services:
       - net_private
     restart: always
 
-# =========================================================================
-# NETWORKS & VOLUMES
-# =========================================================================
 networks:
   net_public:
     driver: bridge
   net_private:
     driver: bridge
+    internal: false
 
 volumes:
   db_data:
@@ -215,5 +254,5 @@ volumes:
   ldap_config:
   grafana_data:
   ollama_data:
-  snort_logs:
   php_sessions:
+  mail_data:

@@ -1,5 +1,6 @@
 # --- SEGURIDAD CRÍTICA ---
 .env
+src/api/config.local.php
 temp_certbot/
 certbot/
 /etc/letsencrypt/
